@@ -3,33 +3,39 @@ import 'dart:convert';
 import 'package:encrypt/encrypt.dart';
 
 class SecurityHelper {
-  // পিএইচপি এর সাথে মেলানো ঠিক ৩২ ও ১৬ ক্যারেক্টারের সিক্রেট কি
+  // আপনার জেনারেট করা ৩২ ক্যারেক্টারের সিক্রেট কি (AES-256 Key)
   static const String _secretKey =
-      "SmartVoterSecretKey2026Secure99X"; // ৩২ অক্ষর
+      "SmartVoterSecretKey2026Secure99X"; // ঠিক ৩২ অক্ষর
   static const String _secretIV = "VoterSecurityIV_"; // ঠিক ১৬ অক্ষর
 
   static final _key = Key.fromUtf8(_secretKey);
   static final _iv = IV.fromUtf8(_secretIV);
   static final _encrypter = Encrypter(AES(_key, mode: AESMode.cbc));
 
-  // ডাটা এনক্রিপ্ট করা
-  static String encryptPayload(dynamic data) {
+  // সম্পূর্ণ রিকোয়েস্ট বডি ১০০% এনক্রিপ্ট করা
+  static String encryptWholeRequest(Map<String, dynamic> data) {
     try {
       final String jsonString = jsonEncode(data);
       final encrypted = _encrypter.encrypt(jsonString, iv: _iv);
-      return encrypted.base64;
+      return jsonEncode({"req": encrypted.base64});
     } catch (e) {
       return jsonEncode(data);
     }
   }
 
-  // ডাটা ডিক্রিপ্ট করা
-  static dynamic decryptPayload(String encryptedBase64) {
+  // সার্ভার থেকে আসা ১০০% এনক্রিপ্টেড রেসপন্স সম্পূর্ণ ডিক্রিপ্ট করা
+  static dynamic decryptWholeResponse(String responseBody) {
     try {
-      final decrypted = _encrypter.decrypt64(encryptedBase64, iv: _iv);
-      return jsonDecode(decrypted);
+      final Map<String, dynamic> bodyJson = jsonDecode(responseBody);
+      if (bodyJson.containsKey('enc')) {
+        final String cipherBase64 = bodyJson['enc'];
+        final decryptedJsonStr = _encrypter.decrypt64(cipherBase64, iv: _iv);
+        return jsonDecode(decryptedJsonStr);
+      }
+      return bodyJson;
     } catch (e) {
-      return jsonDecode(encryptedBase64);
+      print("Decryption Error: $e");
+      return null;
     }
   }
 }

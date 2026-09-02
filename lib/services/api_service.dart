@@ -19,7 +19,7 @@ class CandidateApiService {
     "Content-Type": "application/json",
     "Accept": "application/json",
     "ngrok-skip-browser-warning": "true",
-    "User-Agent": "SmartVoterSecureClient/4.0",
+    "User-Agent": "SmartVoterSecureClient/5.0",
   };
 
   static Future<Map<String, dynamic>> login(
@@ -29,31 +29,22 @@ class CandidateApiService {
     final url = "${AppConfig.apiBaseUrl}?action=candidate_login";
 
     try {
-      final encryptedBody = SecurityHelper.encryptPayload({
+      // ১. সম্পূর্ণ রিকোয়েস্ট এনক্রিপ্ট করা
+      final encryptedBodyString = SecurityHelper.encryptWholeRequest({
         "user_id": userId,
         "password": password,
       });
 
       final response = await http
-          .post(
-            Uri.parse(url),
-            headers: _headers,
-            body: jsonEncode({
-              "payload": encryptedBody,
-              "user_id": userId,
-              "password": password,
-            }),
-          )
+          .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
           .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
-        final resJson = jsonDecode(response.body);
-        Map<String, dynamic> res =
-            (resJson['secure'] == true && resJson['payload'] != null)
-            ? SecurityHelper.decryptPayload(resJson['payload'])
-            : resJson;
+        // ২. সার্ভারের ১০০% এনক্রিপ্টেড রেসপন্স সম্পূর্ণ ডিক্রিপ্ট করা
+        final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
 
-        if (res['status'] == 'success' || res['success'] == true) {
+        if (res != null &&
+            (res['status'] == 'success' || res['success'] == true)) {
           final data = res['data'];
           final cData = data['candidate'];
           final List wardsRaw = data['assigned_wards'] ?? [];
@@ -83,13 +74,13 @@ class CandidateApiService {
         } else {
           return {
             'success': false,
-            'message': res['message'] ?? 'ইউজার আইডি বা পাসওয়ার্ড ভুল!',
+            'message': res?['message'] ?? 'ইউজার আইডি বা পাসওয়ার্ড ভুল!',
           };
         }
       }
       return {
         'success': false,
-        'message': 'সার্ভার রেসপন্স কোড: ${response.statusCode}',
+        'message': 'সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি।',
       };
     } on SocketException {
       return {
@@ -99,32 +90,30 @@ class CandidateApiService {
     } on TimeoutException {
       return {'success': false, 'message': 'সার্ভার রেসপন্স টাইমআউট হয়েছে।'};
     } catch (e) {
-      return {'success': false, 'message': 'কানেকশন ত্রুটি: $e'};
+      return {
+        'success': false,
+        'message': 'সার্ভারের সাথে সংযোগ স্থাপন করা সম্ভব হয়নি।',
+      };
     }
   }
 
-  // প্রার্থীর নতুন এলাকা ও প্রোফাইল সরাসরি রিফ্রেশ
   static Future<Map<String, dynamic>> refreshProfile(String userId) async {
     final url = "${AppConfig.apiBaseUrl}?action=refresh_candidate_profile";
 
     try {
-      final encryptedBody = SecurityHelper.encryptPayload({"user_id": userId});
+      final encryptedBodyString = SecurityHelper.encryptWholeRequest({
+        "user_id": userId,
+      });
+
       final response = await http
-          .post(
-            Uri.parse(url),
-            headers: _headers,
-            body: jsonEncode({"payload": encryptedBody, "user_id": userId}),
-          )
+          .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
           .timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
-        final resJson = jsonDecode(response.body);
-        Map<String, dynamic> res =
-            (resJson['secure'] == true && resJson['payload'] != null)
-            ? SecurityHelper.decryptPayload(resJson['payload'])
-            : resJson;
+        final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
 
-        if (res['status'] == 'success' || res['success'] == true) {
+        if (res != null &&
+            (res['status'] == 'success' || res['success'] == true)) {
           final data = res['data'];
           final cData = data['candidate'];
           final List wardsRaw = data['assigned_wards'] ?? [];
@@ -166,7 +155,7 @@ class VoterApiService {
     final url = "${AppConfig.apiBaseUrl}?action=download_voters";
 
     try {
-      final encryptedBody = SecurityHelper.encryptPayload({
+      final encryptedBodyString = SecurityHelper.encryptWholeRequest({
         "area_name": areaName,
         "user_id": userId ?? '',
       });
@@ -178,24 +167,17 @@ class VoterApiService {
               "Content-Type": "application/json",
               "Accept": "application/json",
               "ngrok-skip-browser-warning": "true",
-              "User-Agent": "SmartVoterSecureClient/4.0",
+              "User-Agent": "SmartVoterSecureClient/5.0",
             },
-            body: jsonEncode({
-              "payload": encryptedBody,
-              "area_name": areaName,
-              "user_id": userId ?? '',
-            }),
+            body: encryptedBodyString,
           )
           .timeout(const Duration(seconds: 40));
 
       if (response.statusCode == 200) {
-        final resJson = jsonDecode(response.body);
-        Map<String, dynamic> res =
-            (resJson['secure'] == true && resJson['payload'] != null)
-            ? SecurityHelper.decryptPayload(resJson['payload'])
-            : resJson;
+        final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
 
-        if (res['status'] == 'success' || res['success'] == true) {
+        if (res != null &&
+            (res['status'] == 'success' || res['success'] == true)) {
           final List list = res['voters'] ?? [];
           return await compute(_parseVotersBackground, list);
         }
