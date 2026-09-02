@@ -1,0 +1,6 @@
+android/key.properties
+
+storePassword=123456
+keyPassword=123456
+keyAlias=upload
+storeFile=upload-keystore.jks
