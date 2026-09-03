@@ -8,6 +8,9 @@ class SecurityHelper {
       "SmartVoterSecretKey2026Secure99X"; // ঠিক ৩২ অক্ষর
   static const String _secretIV = "VoterSecurityIV_"; // ঠিক ১৬ অক্ষর
 
+  // ডাটাবেজের জন্য শক্তিশালী সিক্রেট কি
+  static const String dbSecretKey = "VoterDBSecure@2026#AES256EncryptedKey!";
+
   static final _key = Key.fromUtf8(_secretKey);
   static final _iv = IV.fromUtf8(_secretIV);
   static final _encrypter = Encrypter(AES(_key, mode: AESMode.cbc));

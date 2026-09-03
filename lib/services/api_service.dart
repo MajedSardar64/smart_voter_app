@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/candidate.dart';
 import '../models/voter.dart';
+import '../utils/bangla_helper.dart';
 import '../utils/security_helper.dart';
 
 List<Voter> _parseVotersBackground(List<dynamic> list) {
@@ -19,7 +19,7 @@ class CandidateApiService {
     "Content-Type": "application/json",
     "Accept": "application/json",
     "ngrok-skip-browser-warning": "true",
-    "User-Agent": "SmartVoterSecureClient/5.0",
+    if (!kIsWeb) "User-Agent": "SmartVoterSecureClient/5.0",
   };
 
   static Future<Map<String, dynamic>> login(
@@ -29,7 +29,6 @@ class CandidateApiService {
     final url = "${AppConfig.apiBaseUrl}?action=candidate_login";
 
     try {
-      // ১. সম্পূর্ণ রিকোয়েস্ট এনক্রিপ্ট করা
       final encryptedBodyString = SecurityHelper.encryptWholeRequest({
         "user_id": userId,
         "password": password,
@@ -37,10 +36,9 @@ class CandidateApiService {
 
       final response = await http
           .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        // ২. সার্ভারের ১০০% এনক্রিপ্টেড রেসপন্স সম্পূর্ণ ডিক্রিপ্ট করা
         final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
 
         if (res != null &&
@@ -60,6 +58,11 @@ class CandidateApiService {
             partyName: cData['party_name'] ?? 'স্বতন্ত্র',
             symbolName: cData['symbol_name'] ?? '',
             electionDate: cData['election_date'] ?? '',
+            divisionName: cData['division_name'] ?? '',
+            districtName: cData['district_name'] ?? '',
+            upazilaName: cData['upazila_name'] ?? '',
+            totalVoters:
+                int.tryParse(cData['total_voters']?.toString() ?? '0') ?? 0,
             candidateImage: cData['candidate_image'],
             symbolImage: cData['symbol_image'],
             bannerImage: cData['banner_image'],
@@ -129,6 +132,11 @@ class CandidateApiService {
             partyName: cData['party_name'] ?? 'স্বতন্ত্র',
             symbolName: cData['symbol_name'] ?? '',
             electionDate: cData['election_date'] ?? '',
+            divisionName: cData['division_name'] ?? '',
+            districtName: cData['district_name'] ?? '',
+            upazilaName: cData['upazila_name'] ?? '',
+            totalVoters:
+                int.tryParse(cData['total_voters']?.toString() ?? '0') ?? 0,
             candidateImage: cData['candidate_image'],
             symbolImage: cData['symbol_image'],
             bannerImage: cData['banner_image'],
@@ -148,6 +156,13 @@ class CandidateApiService {
 }
 
 class VoterApiService {
+  static Map<String, String> get _headers => {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "ngrok-skip-browser-warning": "true",
+    if (!kIsWeb) "User-Agent": "SmartVoterSecureClient/5.0",
+  };
+
   static Future<List<Voter>> fetchVotersForSingleArea(
     String areaName, {
     String? userId,
@@ -161,16 +176,7 @@ class VoterApiService {
       });
 
       final response = await http
-          .post(
-            Uri.parse(url),
-            headers: {
-              "Content-Type": "application/json",
-              "Accept": "application/json",
-              "ngrok-skip-browser-warning": "true",
-              "User-Agent": "SmartVoterSecureClient/5.0",
-            },
-            body: encryptedBodyString,
-          )
+          .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
           .timeout(const Duration(seconds: 40));
 
       if (response.statusCode == 200) {
@@ -184,6 +190,137 @@ class VoterApiService {
       }
     } catch (e) {
       print("Area $areaName download error: $e");
+    }
+    return [];
+  }
+
+  // 🔴 ওয়েব ব্রাউজারের জন্য অনলাইন লাইভ সার্চ (ward ফিল্টারিং সহ)
+  static Future<Map<String, dynamic>> searchVotersOnline({
+    required String searchType,
+    required String keyword,
+    String? ward,
+    String? area,
+    String? gender,
+    String? userId,
+    int limit = 200,
+    int offset = 0,
+  }) async {
+    final url = "${AppConfig.apiBaseUrl}?action=search_voters";
+
+    String currentUserId = userId ?? '';
+    if (currentUserId.isEmpty) {
+      final cand = await AuthService.getActiveCandidate();
+      currentUserId = cand?.userId ?? '';
+    }
+
+    try {
+      final payload = {
+        "user_id": currentUserId,
+        "search_type": searchType,
+        "keyword": keyword,
+        if (ward != null && ward != 'সকল') "ward": ward,
+        if (area != null && area != 'সকল') "voter_area": area,
+        if (gender != null && gender != 'সকল') "gender": gender,
+        "limit": limit,
+        "offset": offset,
+      };
+
+      final encryptedBody = SecurityHelper.encryptWholeRequest(payload);
+      final response = await http
+          .post(Uri.parse(url), headers: _headers, body: encryptedBody)
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
+        if (res != null &&
+            (res['status'] == 'success' || res['data'] != null)) {
+          final List rawList = res['data'] ?? [];
+          final List<Voter> voters = rawList.map((item) {
+            return Voter(
+              id: int.tryParse(item['id']?.toString() ?? '0') ?? 0,
+              serialNo: item['serial_no']?.toString() ?? '',
+              voterNo: item['voter_no']?.toString() ?? '',
+              name: item['name']?.toString() ?? '',
+              gender: item['gender']?.toString() ?? 'পুরুষ',
+              dob: item['date_of_birth']?.toString() ?? '',
+              fatherOrHusband: item['father']?.toString() ?? '',
+              mother: item['mother']?.toString() ?? '',
+              occupation: item['occupation']?.toString() ?? 'প্রযোজ্য নয়',
+              address: item['address']?.toString() ?? '',
+              area: item['voter_area_name']?.toString() ?? '',
+              ward: item['union_name']?.toString() ?? '',
+              centerName: item['voter_center']?.toString() ?? '',
+            );
+          }).toList();
+          return {'voters': voters, 'count': res['count'] ?? voters.length};
+        }
+      }
+    } catch (e) {
+      print('Online search error: $e');
+    }
+    return {'voters': <Voter>[], 'count': 0};
+  }
+
+  // 🔴 ওয়েব ব্রাউজারের জন্য অনলাইন ফ্যামিলি সার্চ
+  static Future<List<Voter>> searchFamilyOnline(
+    Voter voter, {
+    String? userId,
+  }) async {
+    final url = "${AppConfig.apiBaseUrl}?action=search_voters";
+
+    String currentUserId = userId ?? '';
+    if (currentUserId.isEmpty) {
+      final cand = await AuthService.getActiveCandidate();
+      currentUserId = cand?.userId ?? '';
+    }
+
+    try {
+      final payload = {
+        "user_id": currentUserId,
+        "search_type": "family",
+        "father_name": voter.fatherOrHusband,
+        "mother_name": voter.mother,
+        "voter_name": voter.name,
+        "voter_no": voter.voterNo,
+        "gender": BanglaHelper.formatGender(voter.gender),
+        "limit": 50,
+        "offset": 0,
+      };
+
+      final encryptedBody = SecurityHelper.encryptWholeRequest(payload);
+      final response = await http
+          .post(Uri.parse(url), headers: _headers, body: encryptedBody)
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
+        if (res != null &&
+            (res['status'] == 'success' || res['data'] != null)) {
+          final List rawList = res['data'] ?? [];
+          return rawList
+              .map(
+                (item) => Voter(
+                  id: int.tryParse(item['id']?.toString() ?? '0') ?? 0,
+                  serialNo: item['serial_no']?.toString() ?? '',
+                  voterNo: item['voter_no']?.toString() ?? '',
+                  name: item['name']?.toString() ?? '',
+                  gender: item['gender']?.toString() ?? 'পুরুষ',
+                  dob: item['date_of_birth']?.toString() ?? '',
+                  fatherOrHusband: item['father']?.toString() ?? '',
+                  mother: item['mother']?.toString() ?? '',
+                  occupation: item['occupation']?.toString() ?? 'প্রযোজ্য নয়',
+                  address: item['address']?.toString() ?? '',
+                  area: item['voter_area_name']?.toString() ?? '',
+                  ward: item['union_name']?.toString() ?? '',
+                  centerName: item['voter_center']?.toString() ?? '',
+                ),
+              )
+              .where((v) => v.voterNo != voter.voterNo)
+              .toList();
+        }
+      }
+    } catch (e) {
+      print('Family search online error: $e');
     }
     return [];
   }

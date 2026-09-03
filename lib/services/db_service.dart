@@ -1,8 +1,9 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart';
 
 import '../models/voter.dart';
 import '../utils/bangla_helper.dart';
+import '../utils/security_helper.dart';
 
 class DBService {
   static final DBService instance = DBService._init();
@@ -12,7 +13,7 @@ class DBService {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('voter_data_secure_v8.db');
+    _database = await _initDB('voter_data_encrypted_v1.db');
     return _database!;
   }
 
@@ -22,6 +23,7 @@ class DBService {
 
     return await openDatabase(
       path,
+      password: SecurityHelper.dbSecretKey,
       version: 1,
       onCreate: (db, version) async {
         await db.execute('''
@@ -93,13 +95,11 @@ class DBService {
     return voterList.length;
   }
 
-  // নির্দিষ্ট একটি এলাকার সমস্ত ভোটার ডাটাবেজ থেকে মুছে ফেলার মেথড
   Future<int> deleteAreaVoters(String areaName) async {
     final db = await instance.database;
     return await db.delete('voters', where: 'area = ?', whereArgs: [areaName]);
   }
 
-  // একটি সম্পূর্ণ ইউনিয়ন/ওয়ার্ডের এলাকাগুলো মুছে ফেলা
   Future<int> deleteMultipleAreas(List<String> areaNames) async {
     if (areaNames.isEmpty) return 0;
     final db = await instance.database;
@@ -293,7 +293,6 @@ class DBService {
     return result.map((json) => Voter.fromMap(json)).toList();
   }
 
-  // ক্রমানুসারে প্রায়োরিটি সার্চ: ১. জন্মতারিখ -> ২. বাংলা নাম -> ৩. পিতা/মাতা -> ৪. ইংরেজি নাম -> ৫. NID
   Future<List<Voter>> searchByNidOrOCR({
     String? dob,
     String? banglaName,
@@ -306,7 +305,6 @@ class DBService {
     String query = 'SELECT * FROM voters WHERE 1=0';
     List<dynamic> args = [];
 
-    // ১. জন্মতারিখ (সর্বোচ্চ প্রায়োরিটি - সার্ভারের সব ফরম্যাট ম্যাচ)
     if (dob != null && dob.trim().isNotEmpty) {
       final dobVariations = BanglaHelper.generateDobVariations(dob);
       for (var v in dobVariations) {
@@ -314,12 +312,10 @@ class DBService {
         args.add('%$v%');
       }
     }
-    // ২. বাংলা নাম
     if (banglaName != null && banglaName.trim().isNotEmpty) {
       query += ' OR name LIKE ?';
       args.add('%${banglaName.trim()}%');
     }
-    // ৩. পিতা ও মাতা
     if (father != null && father.trim().isNotEmpty) {
       query += ' OR fatherOrHusband LIKE ?';
       args.add('%${father.trim()}%');
@@ -328,12 +324,10 @@ class DBService {
       query += ' OR mother LIKE ?';
       args.add('%${mother.trim()}%');
     }
-    // ৪. ইংরেজি নাম
     if (englishName != null && englishName.trim().isNotEmpty) {
       query += ' OR name LIKE ?';
       args.add('%${englishName.trim()}%');
     }
-    // ৫. এনআইডি
     if (nid != null && nid.trim().isNotEmpty) {
       String cleanNid = nid.replaceAll(' ', '').trim();
       query += ' OR voterNo LIKE ? OR voterNo LIKE ?';
@@ -343,7 +337,6 @@ class DBService {
       ]);
     }
 
-    // ওয়েইটিং সর্টিং (১. জন্মতারিখ -> ২. নাম -> ৩. পিতা/মাতা -> ৪. NID)
     query += ''' ORDER BY 
       (CASE WHEN dob LIKE ? THEN 8 ELSE 0 END) +
       (CASE WHEN name LIKE ? THEN 6 ELSE 0 END) +
@@ -367,15 +360,82 @@ class DBService {
     return result.map((json) => Voter.fromMap(json)).toList();
   }
 
+  // 🔴 অফলাইন ফ্যামিলি সার্চ (পিতা-মাতা উভয়ের মূল নাম ৫০% মিল এবং লিঙ্গভেদে সন্তান ৭০% মিল)
   Future<List<Voter>> searchFamily(Voter voter) async {
     final db = await instance.database;
-    final result = await db.rawQuery(
-      '''
+
+    String extractCoreName(String name) {
+      String n = name.trim();
+      if (n.isEmpty || n == 'প্রযোজ্য নয়' || n == 'মৃত') return '';
+      final prefixes = RegExp(
+        r'^(মোঃ|মো:|মো\.|মোসাঃ|মোসা:|মোসা\.|মুহাম্মদ|মোহাম্মদ|মৃত|আঃ|আ:|আ\.|মিঃ|মি:|মি\.|শেখ|সৈয়দ|কাজী|এমডি|MD|MST|মিসেস|ডাঃ)\s+',
+        caseSensitive: false,
+      );
+      String cleaned = n.replaceAll(prefixes, '');
+      final suffixes = RegExp(
+        r'\s+(বেগম|খাতুন|বিবি|বানু|মিয়া|আলী|চৌধুরী|খান|হোসেন|হাসান|আহমেদ|রহমান|হক|শিকদার|মোল্লা|সরকার)$',
+        caseSensitive: false,
+      );
+      return cleaned.replaceAll(suffixes, '').trim();
+    }
+
+    final String coreFather = extractCoreName(voter.fatherOrHusband);
+    final String coreMother = extractCoreName(voter.mother);
+    final String coreSelf = extractCoreName(voter.name);
+    final String gender = BanglaHelper.formatGender(voter.gender);
+
+    List<String> conditions = [];
+    List<dynamic> args = [];
+
+    // ১. পিতা ও মাতা উভয় নামের মূল অংশ একত্রে অন্তত ৫০% মিল (সহোদর ভাই-বোন)
+    if (coreFather.isNotEmpty && coreMother.isNotEmpty) {
+      conditions.add('(fatherOrHusband LIKE ? AND mother LIKE ?)');
+      args.addAll(['%$coreFather%', '%$coreMother%']);
+
+      final fWords = coreFather.split(' ').where((w) => w.length >= 3);
+      final mWords = coreMother.split(' ').where((w) => w.length >= 3);
+      for (var fw in fWords) {
+        for (var mw in mWords) {
+          conditions.add('(fatherOrHusband LIKE ? AND mother LIKE ?)');
+          args.addAll(['%$fw%', '%$mw%']);
+        }
+      }
+    }
+
+    // ২. লিঙ্গ অনুযায়ী সন্তান নির্বাচন (৭০% মিল):
+    // পুরুষ হলে পিতার ঘরে নিজের নাম, মহিলা হলে মাতার ঘরে নিজের নাম
+    if (coreSelf.isNotEmpty) {
+      if (gender == 'মহিলা') {
+        conditions.add('(mother LIKE ?)');
+        args.add('%$coreSelf%');
+      } else {
+        conditions.add('(fatherOrHusband LIKE ?)');
+        args.add('%$coreSelf%');
+      }
+    }
+
+    if (conditions.isEmpty) return [];
+
+    final String orWhere = conditions.join(' OR ');
+    final String sql =
+        '''
       SELECT * FROM voters 
-      WHERE (fatherOrHusband = ? OR name = ? OR address = ?) AND id != ?
-    ''',
-      [voter.name, voter.fatherOrHusband, voter.address, voter.id],
-    );
+      WHERE id != ? AND voterNo != ? AND ($orWhere)
+      ORDER BY 
+        (CASE WHEN (fatherOrHusband LIKE ? AND mother LIKE ?) THEN 40 ELSE 0 END) +
+        (CASE WHEN (fatherOrHusband LIKE ? OR mother LIKE ?) THEN 25 ELSE 0 END) DESC
+      LIMIT 50
+    ''';
+
+    final List<dynamic> queryParams = [
+      voter.id,
+      voter.voterNo,
+      ...args,
+      '%$coreFather%', '%$coreMother%', // স্কোর ৪০: পিতা-মাতা উভয় মিল
+      '%$coreSelf%', '%$coreSelf%', // স্কোর ২৫: সন্তান মিল
+    ];
+
+    final result = await db.rawQuery(sql, queryParams);
     return result.map((json) => Voter.fromMap(json)).toList();
   }
 
@@ -388,12 +448,16 @@ class DBService {
         0;
     final totalCenters =
         Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(DISTINCT centerName) FROM voters'),
+          await db.rawQuery(
+            'SELECT COUNT(DISTINCT centerName) FROM voters WHERE centerName != ""',
+          ),
         ) ??
         0;
     final totalAreas =
         Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(DISTINCT area) FROM voters'),
+          await db.rawQuery(
+            'SELECT COUNT(DISTINCT area) FROM voters WHERE area != ""',
+          ),
         ) ??
         0;
 
@@ -404,6 +468,7 @@ class DBService {
              SUM(CASE WHEN gender = 'হিজড়া' THEN 1 ELSE 0 END) as hijraCount,
              COUNT(*) as total
       FROM voters
+      WHERE area != ""
       GROUP BY area
       ORDER BY area ASC
     ''');
@@ -414,6 +479,7 @@ class DBService {
              MAX(CAST(serialNo AS INTEGER)) as endSerial,
              COUNT(*) as totalCount
       FROM voters
+      WHERE centerName != ""
       GROUP BY centerName
       ORDER BY centerName ASC
     ''');

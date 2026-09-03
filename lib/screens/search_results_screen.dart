@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/voter.dart';
+import '../services/api_service.dart';
 import '../services/db_service.dart';
 import '../utils/bangla_helper.dart';
 import 'voter_detail_screen.dart';
@@ -49,7 +51,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   @override
   void initState() {
     super.initState();
-    // রেজাল্ট পেজে আসা মাত্রই কিবোর্ড পুরোপুরি বন্ধ রাখা
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusManager.instance.primaryFocus?.unfocus();
     });
@@ -68,6 +69,53 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   void _initLoad() async {
     setState(() => _isLoadingInitial = true);
 
+    // 🔴 ওয়েব ভার্সন হলে সরাসরি লাইভ এপিআই সার্চ (ward সহ)
+    if (kIsWeb) {
+      String searchType = 'name';
+      String keyword = '';
+
+      if (widget.name != null && widget.name!.isNotEmpty) {
+        searchType = 'name';
+        keyword = widget.name!;
+      } else if (widget.dob != null && widget.dob!.isNotEmpty) {
+        searchType = 'dob';
+        keyword = widget.dob!;
+      } else if (widget.voterNo != null && widget.voterNo!.isNotEmpty) {
+        searchType = 'voter_no';
+        keyword = widget.voterNo!;
+      } else if (widget.serialNo != null && widget.serialNo!.isNotEmpty) {
+        searchType = 'serial_no';
+        keyword = widget.serialNo!;
+      } else if (widget.holdingNo != null && widget.holdingNo!.isNotEmpty) {
+        searchType = 'address';
+        keyword = widget.holdingNo!;
+      }
+
+      final result = await VoterApiService.searchVotersOnline(
+        searchType: searchType,
+        keyword: keyword,
+        ward: widget.ward, // 🔴 নির্বাচিত ওয়ার্ড ফিল্টার
+        area: widget.area,
+        gender: widget.gender,
+        limit: _limit,
+        offset: 0,
+      );
+
+      final List<Voter> onlineVoters = result['voters'] ?? [];
+      final int count = result['count'] ?? onlineVoters.length;
+
+      if (!mounted) return;
+      setState(() {
+        _totalCount = count;
+        _voters.addAll(onlineVoters);
+        _offset = onlineVoters.length;
+        _hasMore = _voters.length < _totalCount;
+        _isLoadingInitial = false;
+      });
+      return;
+    }
+
+    // মোবাইল ডিভাইসে অফলাইন SQLite ডাটাবেজ থেকে সার্চ
     final count = await DBService.instance.getSearchCount(
       name: widget.name,
       dob: widget.dob,
@@ -108,6 +156,49 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         !_isLoadingMore &&
         _hasMore) {
       setState(() => _isLoadingMore = true);
+
+      if (kIsWeb) {
+        String searchType = 'name';
+        String keyword = '';
+
+        if (widget.name != null && widget.name!.isNotEmpty) {
+          searchType = 'name';
+          keyword = widget.name!;
+        } else if (widget.dob != null && widget.dob!.isNotEmpty) {
+          searchType = 'dob';
+          keyword = widget.dob!;
+        } else if (widget.voterNo != null && widget.voterNo!.isNotEmpty) {
+          searchType = 'voter_no';
+          keyword = widget.voterNo!;
+        } else if (widget.serialNo != null && widget.serialNo!.isNotEmpty) {
+          searchType = 'serial_no';
+          keyword = widget.serialNo!;
+        } else if (widget.holdingNo != null && widget.holdingNo!.isNotEmpty) {
+          searchType = 'address';
+          keyword = widget.holdingNo!;
+        }
+
+        final result = await VoterApiService.searchVotersOnline(
+          searchType: searchType,
+          keyword: keyword,
+          ward: widget.ward, // 🔴 নির্বাচিত ওয়ার্ড ফিল্টার
+          area: widget.area,
+          gender: widget.gender,
+          limit: _limit,
+          offset: _offset,
+        );
+
+        final List<Voter> nextBatch = result['voters'] ?? [];
+
+        if (!mounted) return;
+        setState(() {
+          _voters.addAll(nextBatch);
+          _offset += nextBatch.length;
+          _hasMore = _voters.length < _totalCount;
+          _isLoadingMore = false;
+        });
+        return;
+      }
 
       final nextBatch = await DBService.instance.searchVotersPaginated(
         name: widget.name,
@@ -264,7 +355,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                 color: Colors.grey,
                               ),
                               onTap: () {
-                                // বিস্তারিত দেখার পেজে যাওয়ার সময়ও কিবোর্ড বন্ধ রাখা
                                 FocusManager.instance.primaryFocus?.unfocus();
                                 Navigator.push(
                                   context,

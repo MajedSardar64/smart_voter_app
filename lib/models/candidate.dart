@@ -8,12 +8,18 @@ import '../services/api_service.dart';
 import '../services/offline_image_service.dart';
 
 class WardAllocation {
+  final String divisionName;
+  final String districtName;
+  final String upazilaName;
   final String unionOrPouro;
   final String wardNo;
   final String areaName;
   final int totalVoters;
 
   WardAllocation({
+    this.divisionName = '',
+    this.districtName = '',
+    this.upazilaName = '',
     required this.unionOrPouro,
     required this.wardNo,
     required this.areaName,
@@ -21,6 +27,9 @@ class WardAllocation {
   });
 
   Map<String, dynamic> toMap() => {
+    'divisionName': divisionName,
+    'districtName': districtName,
+    'upazilaName': upazilaName,
     'unionOrPouro': unionOrPouro,
     'wardNo': wardNo,
     'areaName': areaName,
@@ -30,6 +39,9 @@ class WardAllocation {
   factory WardAllocation.fromMap(dynamic map) {
     if (map is! Map) {
       return WardAllocation(
+        divisionName: '',
+        districtName: '',
+        upazilaName: '',
         unionOrPouro: '',
         wardNo: '',
         areaName: '',
@@ -37,6 +49,9 @@ class WardAllocation {
       );
     }
     return WardAllocation(
+      divisionName: map['divisionName']?.toString() ?? '',
+      districtName: map['districtName']?.toString() ?? '',
+      upazilaName: map['upazilaName']?.toString() ?? '',
       unionOrPouro: map['unionOrPouro']?.toString() ?? '',
       wardNo: map['wardNo']?.toString() ?? '',
       areaName: map['areaName']?.toString() ?? '',
@@ -51,12 +66,15 @@ class Candidate {
   final String name;
   final String postTitle;
   final String electionTitle;
-  final String electionType; // নির্বাচনের ধরন (যেমন: জাতীয় সংসদ নির্বাচন / উপজেলা পরিষদ নির্বাচন)
-  final String
-  constituencyOrWard; // আসন বা ওয়ার্ড (যেমন: ঢাকা-১৯ / ০২ নং ওয়ার্ড)
-  final String partyName; // রাজনৈতিক দল (যেমন: বিএনপি / আওয়ামী লীগ / স্বতন্ত্র)
+  final String electionType;
+  final String constituencyOrWard;
+  final String partyName;
   final String symbolName;
   final String electionDate;
+  final String divisionName;
+  final String districtName;
+  final String upazilaName;
+  final int totalVoters; // 🔴 আসল মোট ভোটার সংখ্যা
   final String? candidateImage;
   final String? symbolImage;
   final String? bannerImage;
@@ -74,16 +92,16 @@ class Candidate {
     this.partyName = 'স্বতন্ত্র',
     required this.symbolName,
     required this.electionDate,
+    this.divisionName = '',
+    this.districtName = '',
+    this.upazilaName = '',
+    this.totalVoters = 0,
     this.candidateImage,
     this.symbolImage,
     this.bannerImage,
     required this.expiryDate,
     required this.assignedWards,
   });
-
-  String get displayWard {
-    return assignedWards.isNotEmpty ? assignedWards.first.wardNo : 'ওয়ার্ড';
-  }
 
   Map<String, dynamic> toMap() => {
     'userId': userId,
@@ -95,6 +113,10 @@ class Candidate {
     'partyName': partyName,
     'symbolName': symbolName,
     'electionDate': electionDate,
+    'divisionName': divisionName,
+    'districtName': districtName,
+    'upazilaName': upazilaName,
+    'total_voters': totalVoters,
     'candidateImage': candidateImage,
     'symbolImage': symbolImage,
     'bannerImage': bannerImage,
@@ -115,6 +137,10 @@ class Candidate {
         partyName: 'স্বতন্ত্র',
         symbolName: '',
         electionDate: '',
+        divisionName: '',
+        districtName: '',
+        upazilaName: '',
+        totalVoters: 0,
         expiryDate: DateTime.now(),
         assignedWards: [],
       );
@@ -135,6 +161,10 @@ class Candidate {
       partyName: map['partyName']?.toString() ?? 'স্বতন্ত্র',
       symbolName: map['symbolName'] ?? '',
       electionDate: map['electionDate'] ?? '',
+      divisionName: map['divisionName']?.toString() ?? '',
+      districtName: map['districtName']?.toString() ?? '',
+      upazilaName: map['upazilaName']?.toString() ?? '',
+      totalVoters: int.tryParse(map['total_voters']?.toString() ?? '0') ?? 0,
       candidateImage: map['candidateImage']?.toString(),
       symbolImage: map['symbolImage']?.toString(),
       bannerImage: map['bannerImage']?.toString(),
@@ -254,6 +284,10 @@ class AuthService {
         partyName: candidate.partyName,
         symbolName: candidate.symbolName,
         electionDate: candidate.electionDate,
+        divisionName: candidate.divisionName,
+        districtName: candidate.districtName,
+        upazilaName: candidate.upazilaName,
+        totalVoters: candidate.totalVoters,
         candidateImage: localCandImg,
         symbolImage: localSymImg,
         bannerImage: localBanImg,
@@ -301,6 +335,7 @@ class AuthService {
           'ban_img',
         );
 
+        // 🔴 ternary লুপ ফিক্স: সার্ভার থেকে খালি আসলে অ্যাপেও খালি হয়ে যাবে
         final updatedOfflineCandidate = Candidate(
           userId: candidate.userId,
           password: '',
@@ -312,13 +347,16 @@ class AuthService {
           partyName: candidate.partyName,
           symbolName: candidate.symbolName,
           electionDate: candidate.electionDate,
+          divisionName: candidate.divisionName,
+          districtName: candidate.districtName,
+          upazilaName: candidate.upazilaName,
+          totalVoters: candidate.totalVoters,
           candidateImage: localCandImg,
           symbolImage: localSymImg,
           bannerImage: localBanImg,
           expiryDate: candidate.expiryDate,
-          assignedWards: candidate.assignedWards.isNotEmpty
-              ? candidate.assignedWards
-              : currentCandidate.assignedWards,
+          assignedWards:
+              candidate.assignedWards, // 🔴 সার্ভারের আসল লিস্ট সরাসরি বসবে
         );
 
         final candidateMap = updatedOfflineCandidate.toMap();

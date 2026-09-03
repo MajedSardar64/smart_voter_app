@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -9,6 +10,11 @@ class OfflineImageService {
     String? imageUrl,
     String fileNamePrefix,
   ) async {
+    // 🔴 ওয়েব ব্রাউজারে লোকাল ফাইল সিস্টেম থাকে না, তাই সরাসরি ছবির URL রিটার্ন করবে (ক্র্যাশ রোধ)
+    if (kIsWeb) {
+      return imageUrl;
+    }
+
     if (imageUrl == null || imageUrl.trim().isEmpty) return null;
 
     try {
@@ -32,7 +38,7 @@ class OfflineImageService {
         }
       }
 
-      // ৩. নতুন ছবি ডাউনলোড ও সেভ
+      // ৩. নতুন ছবি ডাউনলোড ও অফলাইনে সেভ করা
       final response = await http
           .get(
             Uri.parse(imageUrl),
@@ -45,7 +51,7 @@ class OfflineImageService {
         await file.writeAsBytes(response.bodyBytes);
 
         PaintingBinding.instance.imageCache.clear();
-        return localFilePath; // অফলাইন লোকাল ফাইল পাথ
+        return localFilePath; // মোবাইলের জন্য অফলাইন লোকাল ফাইল পাথ
       }
     } catch (e) {
       print('Image cache error for $fileNamePrefix: $e');

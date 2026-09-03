@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,6 +20,7 @@ class SearchView extends StatefulWidget {
 
 class _SearchViewState extends State<SearchView> {
   final _inputController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   Candidate? _candidate;
 
   String _selectedGender = 'সকল';
@@ -33,12 +35,51 @@ class _SearchViewState extends State<SearchView> {
   void initState() {
     super.initState();
     _loadInitialData();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
+  @override
+  void didUpdateWidget(covariant SearchView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchMode != widget.searchMode) {
+      _inputController.clear();
+      _focusNode.unfocus();
+      Future.delayed(const Duration(milliseconds: 60), () {
+        if (mounted) _focusNode.requestFocus();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  // 🔴 শুধুমাত্র প্রার্থীর হোয়াইটলিস্টের ওয়ার্ড ও এলাকা দিয়ে ড্রপডাউন পূরণ (Android ও Web উভয়ের জন্য)
   void _loadInitialData() async {
     final candidate = await AuthService.getActiveCandidate();
-    final wards = await DBService.instance.getAvailableWards();
-    final areas = await DBService.instance.getAvailableAreas();
+
+    List<String> wards = ['সকল'];
+    List<String> areas = ['সকল'];
+
+    if (candidate != null) {
+      final Set<String> wSet = {'সকল'};
+      final Set<String> aSet = {'সকল'};
+      for (var w in candidate.assignedWards) {
+        if (w.unionOrPouro.isNotEmpty) wSet.add(w.unionOrPouro);
+        if (w.wardNo.isNotEmpty && w.wardNo != '0') wSet.add(w.wardNo);
+        if (w.areaName.isNotEmpty) aSet.add(w.areaName);
+      }
+      wards = wSet.toList();
+      areas = aSet.toList();
+    }
 
     if (!mounted) return;
     setState(() {
@@ -54,9 +95,20 @@ class _SearchViewState extends State<SearchView> {
       _selectedArea = 'সকল';
     });
 
-    final filteredAreas = await DBService.instance.getAvailableAreas(
-      ward: _selectedWard,
-    );
+    List<String> filteredAreas = ['সকল'];
+
+    if (_candidate != null) {
+      final Set<String> aSet = {'সকল'};
+      for (var w in _candidate!.assignedWards) {
+        if (_selectedWard == 'সকল' ||
+            w.unionOrPouro == _selectedWard ||
+            w.wardNo == _selectedWard) {
+          if (w.areaName.isNotEmpty) aSet.add(w.areaName);
+        }
+      }
+      filteredAreas = aSet.toList();
+    }
+
     if (!mounted) return;
     setState(() {
       _areas = filteredAreas;
@@ -152,7 +204,7 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildCandidateImage(String? path) {
     if (path != null && path.trim().isNotEmpty) {
-      if (path.startsWith('http')) {
+      if (kIsWeb || path.startsWith('http')) {
         return ClipOval(
           child: Image.network(
             path,
@@ -183,7 +235,7 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildSymbolImage(String? path) {
     if (path != null && path.trim().isNotEmpty) {
-      if (path.startsWith('http')) {
+      if (kIsWeb || path.startsWith('http')) {
         return ClipOval(
           child: Image.network(
             path,
@@ -217,23 +269,28 @@ class _SearchViewState extends State<SearchView> {
     String inputLabel = 'ভোটারের নাম লিখুন:';
     TextInputType keyboardType = TextInputType.text;
     List<TextInputFormatter> formatters = [];
+    IconData inputIcon = Icons.person_search;
 
     if (widget.searchMode == 1) {
       inputLabel = 'জন্ম তারিখ (যেমন: ১৫/০৮/১৯৯৫):';
       keyboardType = TextInputType.number;
       formatters = [DateOfBirthMaskFormatter()];
+      inputIcon = Icons.calendar_month;
     } else if (widget.searchMode == 2) {
       inputLabel = 'হোল্ডিং নং বা ঠিকানা (যেমন: এ-১৩/৫ বা ০৫):';
       keyboardType = TextInputType.text;
       formatters = [AutoBanglaTextFormatter(isAddress: true)];
+      inputIcon = Icons.home_work_outlined;
     } else if (widget.searchMode == 3) {
       inputLabel = 'সিরিয়াল নং লিখুন:';
       keyboardType = TextInputType.number;
       formatters = [AutoBanglaTextFormatter()];
+      inputIcon = Icons.format_list_numbered;
     } else if (widget.searchMode == 4) {
       inputLabel = 'ভোটার নাম্বার লিখুন:';
       keyboardType = TextInputType.number;
       formatters = [AutoBanglaTextFormatter()];
+      inputIcon = Icons.badge_outlined;
     }
 
     return SingleChildScrollView(
@@ -244,11 +301,16 @@ class _SearchViewState extends State<SearchView> {
             child: Column(
               children: [
                 TextField(
+                  key: ValueKey('input_field_mode_${widget.searchMode}'),
                   controller: _inputController,
+                  focusNode: _focusNode,
                   keyboardType: keyboardType,
                   inputFormatters: formatters,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _executeSearch(),
                   decoration: InputDecoration(
                     labelText: inputLabel,
+                    prefixIcon: Icon(inputIcon, color: const Color(0xFF004D40)),
                     border: const UnderlineInputBorder(),
                   ),
                 ),
@@ -327,7 +389,7 @@ class _SearchViewState extends State<SearchView> {
             ),
           ),
 
-          // 🔴 সমস্ত সার্চ পেজের নিচে প্রদর্শিত প্রার্থীর নির্বাচনী ব্যানার ও পোস্টার কার্ড
+          // 🔴 নিচে প্রার্থীর ব্যানার ও নির্বাচনী পোস্টার কার্ড সম্পূর্ণরূপে ফিরিয়ে আনা হয়েছে
           if (_candidate != null)
             Container(
               width: double.infinity,
@@ -335,8 +397,8 @@ class _SearchViewState extends State<SearchView> {
               child: Column(
                 children: [
                   if (_candidate!.bannerImage != null &&
-                      _candidate!.bannerImage!.isNotEmpty)
-                    _candidate!.bannerImage!.startsWith('http')
+                      _candidate!.bannerImage!.trim().isNotEmpty)
+                    (kIsWeb || _candidate!.bannerImage!.startsWith('http'))
                         ? Image.network(
                             _candidate!.bannerImage!,
                             width: double.infinity,

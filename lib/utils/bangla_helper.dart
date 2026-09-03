@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import '../models/candidate.dart';
+
 class BanglaHelper {
   static String toBanglaDigits(String input) {
     const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -86,23 +88,6 @@ class BanglaHelper {
   static String formatDobToNumericBangla(String dobStr) =>
       formatDobToBangla(dobStr);
 
-  static List<String> generateAddressVariations(String input) {
-    if (input.trim().isEmpty) return [];
-    String cleaned = input.trim();
-    String bnDigits = toBanglaDigits(cleaned);
-    String enDigits = toEnglishDigits(cleaned);
-
-    String converted = bnDigits
-        .replaceAll(RegExp(r'A-', caseSensitive: false), 'এ-')
-        .replaceAll(RegExp(r'B-', caseSensitive: false), 'বি-')
-        .replaceAll(RegExp(r'C-', caseSensitive: false), 'সি-')
-        .replaceAll(RegExp(r'D-', caseSensitive: false), 'ডি-')
-        .replaceAll(RegExp(r'Holding', caseSensitive: false), 'হোল্ডিং')
-        .replaceAll(RegExp(r'Road', caseSensitive: false), 'রোড');
-
-    return {cleaned, bnDigits, enDigits, converted}.toList();
-  }
-
   static List<String> generateDobVariations(String rawInput) {
     if (rawInput.trim().isEmpty) return [];
     String input = toEnglishDigits(rawInput.trim());
@@ -174,21 +159,80 @@ class BanglaHelper {
     }
     return variations.toSet().toList();
   }
+
+  // 🔴 কোনো অনুমান ছাড়া সরাসরি এপিআই থেকে অফলাইনে সেভ হওয়া ডেটা রিড করা
+  static Map<String, String> getGeoHierarchyFromStorage(Candidate? candidate) {
+    if (candidate == null) {
+      return {
+        'division': '',
+        'district': '',
+        'upazila': '',
+        'localUnits': '',
+        'summary': '',
+      };
+    }
+
+    // ১. এপিআই রেসপন্স থেকে প্রার্থীর প্রোফাইলে সেভ হওয়া তথ্য
+    String division = candidate.divisionName.trim();
+    String district = candidate.districtName.trim();
+    String upazila = candidate.upazilaName.trim();
+
+    // ২. যদি সরাসরি প্রার্থীর অবজেক্টে না পাওয়া যায়, তবে তার বরাদ্দকৃত এলাকাগুলো থেকে পড়া
+    if (division.isEmpty || district.isEmpty || upazila.isEmpty) {
+      for (var w in candidate.assignedWards) {
+        if (division.isEmpty && w.divisionName.isNotEmpty)
+          division = w.divisionName;
+        if (district.isEmpty && w.districtName.isNotEmpty)
+          district = w.districtName;
+        if (upazila.isEmpty && w.upazilaName.isNotEmpty)
+          upazila = w.upazilaName;
+      }
+    }
+
+    // ৩. ইউনিয়ন ও পৌরসভা সংগ্রহ
+    Set<String> units = {};
+    for (var w in candidate.assignedWards) {
+      final name = w.unionOrPouro.trim();
+      if (name.isNotEmpty && name != '0') units.add(name);
+    }
+    String localUnits = units.isNotEmpty
+        ? units.join(', ')
+        : candidate.constituencyOrWard;
+
+    List<String> summaryParts = [];
+    if (division.isNotEmpty)
+      summaryParts.add(
+        division.contains('বিভাগ') ? division : '$division বিভাগ',
+      );
+    if (district.isNotEmpty)
+      summaryParts.add(district.contains('জেলা') ? district : '$district জেলা');
+    if (upazila.isNotEmpty)
+      summaryParts.add(
+        (upazila.contains('উপজেলা') || upazila.contains('থানা'))
+            ? upazila
+            : '$upazila উপজেলা',
+      );
+
+    return {
+      'division': division,
+      'district': district,
+      'upazila': upazila,
+      'localUnits': localUnits,
+      'summary': summaryParts.join(' • '),
+    };
+  }
 }
 
-// জন্মতারিখ অটো-মাস্ক ফরম্যাটার (২ সংখ্যা পর পর স্ল্যাশ বসাবে ও বাংলায় কনভার্ট করবে)
 class DateOfBirthMaskFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // শুধুমাত্র সংখ্যাগুলো ফিল্টার করা
     String rawDigits = BanglaHelper.toBanglaDigits(
       newValue.text.replaceAll(RegExp(r'[^\d০-৯]'), ''),
     );
 
-    // সর্বোচ্চ ৮ ডিজিট (দিন ২ + মাস ২ + বছর ৪)
     if (rawDigits.length > 8) {
       rawDigits = rawDigits.substring(0, 8);
     }
@@ -209,7 +253,6 @@ class DateOfBirthMaskFormatter extends TextInputFormatter {
   }
 }
 
-// হোল্ডিং ঠিকানার অটো-কনভার্টার
 class AutoBanglaTextFormatter extends TextInputFormatter {
   final bool isAddress;
   AutoBanglaTextFormatter({this.isAddress = false});

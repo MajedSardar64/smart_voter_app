@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../utils/bangla_helper.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -13,7 +16,6 @@ class AboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // HomeShell এর সাথে ডাবল AppBar রোধ করতে সরাসরি বডি কন্টেন্ট রিটার্ন করা হলো
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -37,9 +39,19 @@ class AboutScreen extends StatelessWidget {
             'স্মার্ট ভোটার ইনফো',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
-          const Text(
-            'ভার্সন: ৩.৪.০ (অফলাইন প্রো এডিশন)',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+
+          // ডায়নামিক ভার্সন
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final version = snapshot.hasData
+                  ? '${snapshot.data!.version}+${snapshot.data!.buildNumber}'
+                  : '১.০.০+১';
+              return Text(
+                'ভার্সন: ${BanglaHelper.toBanglaDigits(version)} (প্রো এডিশন)',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              );
+            },
           ),
           const SizedBox(height: 20),
 
@@ -74,7 +86,7 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // কোম্পানি ও ডেভেলপার পরিচিতি কার্ড
+          // 🔴 কোম্পানি ও ডেভেলপার পরিচিতি কার্ড (সরদার আইটি আপডেট)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -99,15 +111,15 @@ class AboutScreen extends StatelessWidget {
                 _infoRow(
                   Icons.business,
                   'কোম্পানির নাম:',
-                  'পার্সোনাল আইডি (Personal ID)',
+                  'সরদার আইটি (Sardar IT)',
                 ),
                 _infoRow(Icons.location_on, 'ঠিকানা:', 'ঢাকা, বাংলাদেশ'),
                 _infoRow(
                   Icons.phone,
                   'মোবাইল / হেল্পলাইন:',
-                  '০১৬২৪১৫৬৫৮৫',
+                  '০১৬১৯০৯৭৫৭১',
                   isAction: true,
-                  onTap: () => _makePhoneCall('01624156585'),
+                  onTap: () => _makePhoneCall('01619097571'),
                 ),
                 _infoRow(Icons.language, 'ওয়েবসাইট:', 'আপাতত নেই'),
                 _infoRow(Icons.code, 'ডেভেলপার:', 'মাজেদ (Majed)'),
@@ -116,8 +128,9 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
+          // 🔴 স্বত্ব ও কপিরাইট
           const Text(
-            'স্বত্ব © ২০২৪-২০২৮ পার্সোনাল আইডি। সর্বস্বত্ব সংরক্ষিত।',
+            'স্বত্ব © ২০২৪-২০২৮ সরদার আইটি। সর্বস্বত্ব সংরক্ষিত।',
             style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
         ],

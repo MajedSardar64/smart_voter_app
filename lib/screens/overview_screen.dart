@@ -1,12 +1,13 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../models/candidate.dart';
 import '../services/db_service.dart';
 import '../utils/bangla_helper.dart';
 import 'nid_live_scanner_screen.dart';
-import 'ward_download_screen.dart';
 
 class OverviewScreen extends StatefulWidget {
   final Function(int mode, String title) onNavigateSearch;
@@ -19,6 +20,7 @@ class OverviewScreen extends StatefulWidget {
 class _OverviewScreenState extends State<OverviewScreen> {
   int _totalVoters = 0;
   int _totalAreas = 0;
+  int _totalCenters = 0;
 
   @override
   void initState() {
@@ -27,14 +29,43 @@ class _OverviewScreenState extends State<OverviewScreen> {
   }
 
   void _loadOverviewData() async {
-    await AuthService.getActiveCandidate();
+    final candidate = await AuthService.getActiveCandidate();
+
+    // 🔴 ওয়েব ভার্সনে রিয়েল ভোটার সংখ্যা ও এরিয়া হিসাব
+    if (kIsWeb) {
+      if (candidate != null) {
+        _totalAreas = candidate.assignedWards.length;
+        _totalCenters = candidate.assignedWards
+            .map((w) => w.wardNo)
+            .toSet()
+            .length;
+        // সার্ভারের আসল সংখ্যা থাকলে সরাসরি দেখাবে, অন্যথায় ওয়ার্ডগুলোর মোট যোগ করবে
+        _totalVoters = candidate.totalVoters > 0
+            ? candidate.totalVoters
+            : candidate.assignedWards.fold(0, (sum, w) => sum + w.totalVoters);
+      }
+      if (!mounted) return;
+      setState(() {});
+      return;
+    }
+
+    // মোবাইল ডিভাইসে অফলাইন ডাটাবেজ থেকে লোড
     final areas = await DBService.instance.getDownloadedAreas();
     final count = await DBService.instance.getSearchCount();
+    final db = await DBService.instance.database;
+    final centerCount =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(DISTINCT centerName) FROM voters WHERE centerName != ""',
+          ),
+        ) ??
+        0;
 
     if (!mounted) return;
     setState(() {
       _totalAreas = areas.length;
       _totalVoters = count;
+      _totalCenters = centerCount;
     });
   }
 
@@ -45,11 +76,11 @@ class _OverviewScreenState extends State<OverviewScreen> {
     final diffDays = expiry.difference(today).inDays;
 
     if (diffDays == 0) {
-      return 'আজই শেষ দিন';
+      return 'আজ শেষ';
     } else if (diffDays < 0) {
       return 'মেয়াদ শেষ';
     } else {
-      return 'মেয়াদ বাকি: ${BanglaHelper.toBanglaDigits(diffDays.toString())} দিন';
+      return 'বাকি: ${BanglaHelper.toBanglaDigits(diffDays.toString())} দিন';
     }
   }
 
@@ -67,7 +98,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   ImageProvider? _getImageProvider(String? path) {
     if (path == null || path.isEmpty) return null;
-    if (path.startsWith('http')) return NetworkImage(path);
+    if (kIsWeb || path.startsWith('http')) return NetworkImage(path);
     final file = File(path);
     if (file.existsSync()) return FileImage(file);
     return null;
@@ -80,6 +111,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
     return ValueListenableBuilder<Candidate?>(
       valueListenable: AuthService.activeCandidateNotifier,
       builder: (context, candidate, _) {
+        final geo = BanglaHelper.getGeoHierarchyFromStorage(candidate);
+
         return SingleChildScrollView(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -147,7 +180,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                // দল ও প্রতীক
                                 Text(
                                   'দল: ${candidate.partyName} • মার্কা: ${candidate.symbolName}',
                                   style: const TextStyle(
@@ -156,29 +188,30 @@ class _OverviewScreenState extends State<OverviewScreen> {
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                // নির্বাচন স্তর ও আসন/ওয়ার্ড
-                                Text(
-                                  '${candidate.electionType}${candidate.constituencyOrWard.isNotEmpty ? " (${candidate.constituencyOrWard})" : ""}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    color: Colors.white70,
+                                if (geo['summary'] != null &&
+                                    geo['summary']!.isNotEmpty)
+                                  Text(
+                                    '${geo['summary']} (${candidate.constituencyOrWard})',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: Colors.white70,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
                               ],
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      // নির্বাচন তারিখ ও "আজই শেষ দিন" এক্সপায়রি ব্যাজ
                       Row(
                         children: [
                           Expanded(
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
-                                vertical: 6,
+                                vertical: 5,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.12),
@@ -189,7 +222,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                                   const Icon(
                                     Icons.event_available,
                                     color: Colors.amberAccent,
-                                    size: 16,
+                                    size: 15,
                                   ),
                                   const SizedBox(width: 5),
                                   Expanded(
@@ -210,15 +243,14 @@ class _OverviewScreenState extends State<OverviewScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
+                              horizontal: 7,
+                              vertical: 4,
                             ),
                             decoration: BoxDecoration(
                               color: _getExpiryBadgeColor(candidate.expiryDate),
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -226,14 +258,14 @@ class _OverviewScreenState extends State<OverviewScreen> {
                                 const Icon(
                                   Icons.timer_outlined,
                                   color: Colors.white,
-                                  size: 16,
+                                  size: 13,
                                 ),
-                                const SizedBox(width: 5),
+                                const SizedBox(width: 4),
                                 Text(
                                   _getExpiryBadgeText(candidate.expiryDate),
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -247,7 +279,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 ),
               const SizedBox(height: 12),
 
-              // ২. সংরক্ষিত ডাটাবেজ সামারি কার্ড
+              // ২. ৩টি কার্ড পাশাপাশি (সংরক্ষিত ভোটার, এলাকা ও ভোট কেন্দ্র)
               Row(
                 children: [
                   Expanded(
@@ -259,7 +291,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                       isDark,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _statCard(
                       'সংরক্ষিত এলাকা',
@@ -269,24 +301,35 @@ class _OverviewScreenState extends State<OverviewScreen> {
                       isDark,
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _statCard(
+                      'ভোট কেন্দ্র',
+                      '${BanglaHelper.toBanglaDigits(_totalCenters.toString())} টি',
+                      Icons.apartment,
+                      Colors.orange.shade800,
+                      isDark,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
 
-              // ৩. দ্রুত ভোটার অনুসন্ধান (৬টি অপশন)
               const Text(
                 'দ্রুত ভোটার অনুসন্ধান',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
 
+              // 🔴 ৩০% হাইট কমানো ৬টি সার্চ টাইল
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
-                childAspectRatio: 2.1,
+                childAspectRatio:
+                    2.9, // 🔴 ৩০% হাইট কমে স্লিম ও দৃষ্টিনন্দন করা হয়েছে
                 children: [
                   _actionTile(
                     'নাম দিয়ে অনুসন্ধান',
@@ -331,66 +374,34 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     () => widget.onNavigateSearch(2, 'হোল্ডিং দিয়ে অনুসন্ধান'),
                     isDark,
                   ),
-                  _actionTile(
-                    'এন.আই.ডি ক্যামেরা',
-                    Icons.camera_alt_outlined,
-                    Colors.green.shade700,
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const NidLiveScannerScreen(),
-                        ),
-                      );
-                    },
-                    isDark,
-                  ),
+                  if (!kIsWeb)
+                    _actionTile(
+                      'এন.আই.ডি ক্যামেরা',
+                      Icons.camera_alt_outlined,
+                      Colors.green.shade700,
+                      () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const NidLiveScannerScreen(),
+                          ),
+                        );
+                      },
+                      isDark,
+                    ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // ৪. ডাটাবেজ ডাউনলোড শর্টকাট
-              Card(
-                elevation: 0.5,
-                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ListTile(
-                  dense: true,
-                  leading: const Icon(
-                    Icons.cloud_download,
-                    color: Color(0xFFE11D48),
-                    size: 24,
-                  ),
-                  title: const Text(
-                    'ভোটার ডাটাবেজ ডাউনলোড ও সিঙ্ক',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  subtitle: const Text(
-                    'ইউনিয়ন ও ওয়ার্ড অফলাইনে সেভ করুন',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const WardDownloadScreen(isFromSettings: true),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
+              // 🔴 "ভোটার ডাটাবেজ ডাউনলোড" বাটনটি এখান থেকে সম্পূর্ণ মুছে ফেলা হয়েছে
 
-              // ৫. প্রার্থীর নির্বাচনী ব্যানার
-              if (candidate?.bannerImage != null &&
-                  candidate!.bannerImage!.isNotEmpty) ...[
+              // প্রার্থীর নির্বাচনী ব্যানার
+              if (candidate != null &&
+                  candidate.bannerImage != null &&
+                  candidate.bannerImage!.trim().isNotEmpty) ...[
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: candidate.bannerImage!.startsWith('http')
+                  borderRadius: BorderRadius.circular(10),
+                  child: (kIsWeb || candidate.bannerImage!.startsWith('http'))
                       ? Image.network(
                           candidate.bannerImage!,
                           width: double.infinity,
@@ -404,6 +415,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                         ),
                 ),
+                const SizedBox(height: 15),
               ],
             ],
           ),
@@ -420,7 +432,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
     bool isDark,
   ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -431,22 +443,26 @@ class _OverviewScreenState extends State<OverviewScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 22),
+          Icon(icon, color: color, size: 20),
           const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 15.5,
               fontWeight: FontWeight.bold,
               color: color,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             title,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10.5,
               color: isDark ? Colors.white70 : Colors.black54,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -464,7 +480,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -474,7 +490,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 20),
+            Icon(icon, color: color, size: 19),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

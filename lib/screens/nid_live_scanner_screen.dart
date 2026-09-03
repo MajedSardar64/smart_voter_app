@@ -137,7 +137,7 @@ class _NidLiveScannerScreenState extends State<NidLiveScannerScreen>
 
       final parsedData = _extractNidInfo(recognizedText);
 
-      // নির্ধারিত প্রায়োরিটি অনুযায়ী ডাটাবেজে সার্চ
+      // নির্ধারিত প্রায়োরিটি অনুযায়ী ডাটাবেজে সার্চ (জন্মতারিখ ও এনআইডি নম্বর দিয়ে)
       final results = await DBService.instance.searchByNidOrOCR(
         dob: parsedData['dob'],
         banglaName: parsedData['banglaName'],
@@ -154,25 +154,28 @@ class _NidLiveScannerScreenState extends State<NidLiveScannerScreen>
       if (!mounted || _isDisposed) return;
       setState(() => _isProcessing = false);
 
-      if (results.length == 1) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => VoterDetailScreen(voter: results.first),
-          ),
-        );
-      } else if (results.isNotEmpty) {
+      // 🔴 পরিবর্তন: ১ জন পেলেও সরাসরি ভোটার ডিটেইলে না গিয়ে SearchResultsScreen-এ নিয়ে যাবে
+      if (results.isNotEmpty) {
+        String filterLabel = 'শনাক্তকৃত কার্ড';
+        if (parsedData['dob']!.isNotEmpty) {
+          filterLabel =
+              'জন্ম: ${BanglaHelper.formatDobToBangla(parsedData['dob']!)}';
+        } else if (parsedData['nid']!.isNotEmpty) {
+          filterLabel =
+              'NID: ${BanglaHelper.toBanglaDigits(parsedData['nid']!)}';
+        }
+
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => SearchResultsScreen(
-              filterText:
-                  'NID: ${parsedData['name']!.isNotEmpty ? parsedData['name'] : parsedData['dob']}',
+              filterText: filterLabel,
               directResults: results,
             ),
           ),
         );
       } else {
+        // যদি ডাটাবেজে না পাওয়া যায় তবে পপআপ ডায়ালগ দেখাবে
         _showResultDialog(parsedData);
       }
     } catch (e) {

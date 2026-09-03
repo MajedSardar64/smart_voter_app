@@ -3,19 +3,23 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/candidate.dart';
 import '../models/voter.dart';
+import '../services/api_service.dart';
 import '../services/db_service.dart';
 import '../utils/bangla_helper.dart';
 import '../utils/slip_share_helper.dart';
+import '../widgets/voter_print_slip.dart';
 
 class VoterDetailScreen extends StatefulWidget {
   final Voter voter;
@@ -28,9 +32,10 @@ class VoterDetailScreen extends StatefulWidget {
 class _VoterDetailScreenState extends State<VoterDetailScreen> {
   Candidate? _candidate;
   final GlobalKey _thermalPrintKey = GlobalKey();
+  final GlobalKey _screenCardKey = GlobalKey();
 
-  final String softwareFooterInfo = 'এইসিস.আইটি, ঢাকা। মোবাইল: ০১৬২৪১৫৬৫৮৫';
-  final String thermalFooterInfo = 'এ.ই.সিস আইটি, ঢাকা, ০১৬২৪১৫৬৫৮৫';
+  final String softwareFooterInfo = 'সরদার আইটি, ঢাকা। মোবাইল: ০১৬১৯০৯৭৫৭১';
+  final String thermalFooterInfo = 'সরদার আইটি, ঢাকা, ০১৬১৯০৯৭৫৭১';
 
   @override
   void initState() {
@@ -53,27 +58,34 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       return byteData?.buffer.asUint8List();
     } catch (e) {
-      print('Thermal slip capture error: $e');
       return null;
     }
   }
 
-  // ১. PRINT বাটন (পোর্টেবল ব্লুটুথ থার্মাল প্রিন্টারে লম্বালম্বি প্রিন্ট)
-  void _printThermalDirect() async {
-    final bytes = await _captureThermalSlipBytes();
-    if (bytes == null) return;
+  // 🔴 স্মার্ট প্রিন্ট লজিক: সেটিংস অনুযায়ী থার্মাল বা সাধারণ PDF প্রিন্ট
+  void _handleSmartPrint() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool isThermal = prefs.getBool('is_thermal_printer_enabled') ?? true;
 
-    final base64String = base64Encode(bytes);
-    final rawBtUrl = Uri.parse("rawbt:data:image/png;base64,$base64String");
+    if (isThermal && !kIsWeb) {
+      final bytes = await _captureThermalSlipBytes();
+      if (bytes == null) return;
 
-    if (await canLaunchUrl(rawBtUrl)) {
-      await launchUrl(rawBtUrl);
+      final base64String = base64Encode(bytes);
+      final rawBtUrl = Uri.parse("rawbt:data:image/png;base64,$base64String");
+
+      // যদি RawBT বা থার্মাল প্রিন্টার থাকে তবে সরাসরি যাবে, অন্যথায় সাধারণ PDF প্রিভিউ ওপেন হবে
+      if (await canLaunchUrl(rawBtUrl)) {
+        await launchUrl(rawBtUrl);
+      } else {
+        _printNormalPdf();
+      }
     } else {
       _printNormalPdf();
     }
   }
 
-  // ২. PDF প্রিন্ট (সিস্টেম / ওয়াইফাই / A4 প্রিন্ট)
+  // সিস্টেম / PDF প্রিন্ট
   void _printNormalPdf() async {
     final bytes = await _captureThermalSlipBytes();
     if (bytes == null) return;
@@ -102,6 +114,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   void _sendSms() async {
     final msg = Uri.encodeComponent(
       '${_candidate?.electionTitle ?? "নির্বাচন"}: প্রার্থী: ${_candidate?.name ?? ""} (${_candidate?.symbolName ?? ""} মার্কা)\n'
+      'তারিখ: ${_candidate?.electionDate ?? ""}\n'
       'ভোটার: ${widget.voter.name}\nক্রমিক: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}\nকেন্দ্র: ${widget.voter.centerName}',
     );
     final url = Uri.parse('sms:?body=$msg');
@@ -109,7 +122,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   }
 
   void _shareSlipAsImage() {
-    SlipShareHelper.captureAndShareSlip(_thermalPrintKey, widget.voter.name);
+    SlipShareHelper.captureAndShareSlip(_screenCardKey, widget.voter.name);
   }
 
   void _copyAllVoterInfo() {
@@ -118,12 +131,12 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
 
     String textToCopy =
         '''
+নির্বাচনের তারিখ: ${_candidate?.electionDate ?? ""}
 ভোট কেন্দ্র: ${widget.voter.centerName}
 সিরিয়াল নাম্বার: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}
 নাম: ${widget.voter.name}
 ভোটার নং- ${BanglaHelper.toBanglaDigits(widget.voter.voterNo)}, লিঙ্গ: $banglaGender
-পেশা: ${widget.voter.occupation}
-জন্ম তারিখ: $banglaDob
+জন্ম তারিখ: $banglaDob,   পেশা: ${widget.voter.occupation}
 পিতা/স্বামী: ${widget.voter.fatherOrHusband}
 মাতা: ${widget.voter.mother}
 ঠিকানা: ${widget.voter.address}
@@ -143,7 +156,17 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   }
 
   void _openFamilySearch() async {
-    final family = await DBService.instance.searchFamily(widget.voter);
+    List<Voter> family = [];
+
+    if (kIsWeb) {
+      family = await VoterApiService.searchFamilyOnline(
+        widget.voter,
+        userId: _candidate?.userId,
+      );
+    } else {
+      family = await DBService.instance.searchFamily(widget.voter);
+    }
+
     if (!mounted) return;
 
     showModalBottomSheet(
@@ -164,7 +187,10 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
                 ? const Center(
                     child: Padding(
                       padding: EdgeInsets.all(20),
-                      child: Text('কোন সদস্য পাওয়া যায়নি'),
+                      child: Text(
+                        'কোন সদস্য পাওয়া যায়নি',
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ),
                   )
                 : Expanded(
@@ -176,10 +202,12 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
                           style: const TextStyle(
                             color: Color(0xFF2563EB),
                             fontWeight: FontWeight.bold,
+                            fontSize: 15,
                           ),
                         ),
                         subtitle: Text(
                           'পিতা/স্বামী: ${family[i].fatherOrHusband} | মাতা: ${family[i].mother}',
+                          style: const TextStyle(fontSize: 13),
                         ),
                         onTap: () {
                           Navigator.pop(ctx);
@@ -207,7 +235,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     BoxFit fit = BoxFit.cover,
   }) {
     if (path != null && path.trim().isNotEmpty) {
-      if (path.startsWith('http')) {
+      if (kIsWeb || path.startsWith('http')) {
         return Image.network(
           path,
           width: width,
@@ -249,7 +277,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     BoxFit fit = BoxFit.contain,
   }) {
     if (path != null && path.trim().isNotEmpty) {
-      if (path.startsWith('http')) {
+      if (kIsWeb || path.startsWith('http')) {
         return Image.network(
           path,
           width: width,
@@ -284,6 +312,57 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     );
   }
 
+  // 🔴 এক লাইনের ৫টি বাটনের জন্য কমপ্যাক্ট টাইল
+  Widget _actionTile({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: Colors.white),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Bangla',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -301,71 +380,55 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
       ),
       body: Stack(
         children: [
-          // =========================================================================
-          // ১. মোবাইলের স্ক্রিনে দৃশ্যমান UI (অরিজিনাল ডিজাইন)
-          // =========================================================================
           SingleChildScrollView(
             child: Column(
               children: [
+                // 🔴 এক সারিতে সাজানো ৫টি আধুনিক অ্যাকশন বাটন
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 8, 6, 2),
-                  child: Column(
+                  padding: const EdgeInsets.fromLTRB(4, 6, 4, 3),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          _actionBtn(
-                            'PRINT',
-                            const Color(0xFF22262B),
-                            Icons.print,
-                            _printThermalDirect,
-                          ),
-                          _actionBtn(
-                            'PDF প্রিন্ট',
-                            const Color(0xFF005652),
-                            Icons.picture_as_pdf,
-                            _printNormalPdf,
-                          ),
-                          _actionBtn(
-                            'SMS',
-                            const Color(0xFFF4334C),
-                            Icons.sms,
-                            _sendSms,
-                          ),
-                        ],
+                      _actionTile(
+                        label: 'প্রিন্ট',
+                        icon: Icons.print,
+                        color: const Color(0xFF22262B),
+                        onTap: _handleSmartPrint,
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          _actionBtn(
-                            'SHARE',
-                            const Color(0xFF059669),
-                            Icons.share,
-                            _shareSlipAsImage,
-                          ),
-                          _actionBtn(
-                            'COPY',
-                            const Color(0xFF0891B2),
-                            Icons.copy,
-                            _copyAllVoterInfo,
-                          ),
-                          _actionBtn(
-                            'FAMILY',
-                            const Color(0xFF2F76F6),
-                            Icons.family_restroom,
-                            _openFamilySearch,
-                          ),
-                        ],
+                      _actionTile(
+                        label: 'শেয়ার',
+                        icon: Icons.share,
+                        color: const Color(0xFF059669),
+                        onTap: _shareSlipAsImage,
+                      ),
+                      _actionTile(
+                        label: 'SMS',
+                        icon: Icons.sms,
+                        color: const Color(0xFFF4334C),
+                        onTap: _sendSms,
+                      ),
+                      _actionTile(
+                        label: 'কপি',
+                        icon: Icons.copy,
+                        color: const Color(0xFF0891B2),
+                        onTap: _copyAllVoterInfo,
+                      ),
+                      _actionTile(
+                        label: 'পরিবার',
+                        icon: Icons.family_restroom,
+                        color: const Color(0xFF2F76F6),
+                        onTap: _openFamilySearch,
                       ),
                     ],
                   ),
                 ),
+
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 4,
+                    vertical: 1.5,
                   ),
                   child: Text(
-                    'প্রিন্ট করার জন্য প্লে-স্টোর থেকে "RawBT" ডাউনলোড করে আপনার প্রিন্টার কানেক্ট করে নিন।',
+                    'প্রিন্ট করার জন্য সেটিংস থেকে আপনার প্রিন্টার পেয়ার করে নিন।',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 10.5,
@@ -374,171 +437,243 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
 
-                // মোবাইল ডিসপ্লে কার্ড
-                Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(
-                      color: const Color(0xFF004D40),
-                      width: 3,
+                // মোবাইল ডিসপ্লে কার্ড (রঙিন স্লিপ)
+                RepaintBoundary(
+                  key: _screenCardKey,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 155,
-                        width: double.infinity,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF004D40),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Positioned(
-                              top: 48,
-                              bottom: 48,
-                              left: 0,
-                              right: 0,
-                              child: Container(color: const Color(0xFF9FB0B5)),
-                            ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 125,
-                                  height: 125,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.black87,
-                                      width: 2.5,
-                                    ),
-                                    color: Colors.white,
-                                  ),
-                                  child: ClipOval(
-                                    child: _buildImage(
-                                      _candidate?.candidateImage,
-                                      width: 125,
-                                      height: 125,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 125,
-                                  height: 125,
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.black87,
-                                      width: 2.5,
-                                    ),
-                                    color: Colors.white,
-                                  ),
-                                  child: ClipOval(
-                                    child: _buildSymbolImage(
-                                      _candidate?.symbolImage,
-                                      width: 125,
-                                      height: 125,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.fromLTRB(6, 6, 6, 4),
-                        padding: const EdgeInsets.symmetric(vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: Colors.black87, width: 1.5),
-                        ),
-                        child: Text(
-                          '${_candidate?.name ?? "মুহাম্মদ সাইদুল ইসলাম"} কে ${_candidate?.symbolName ?? "তালা"} মার্কায় ভোট দিন',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.5,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.symmetric(horizontal: 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 5,
-                        ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(
                         color: const Color(0xFF004D40),
-                        child: Text(
-                          'কেন্দ্র: ${widget.voter.centerName}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.5,
-                          ),
-                        ),
+                        width: 3,
                       ),
-
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.fromLTRB(6, 0, 6, 6),
-                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                        color: const Color(0xFFA6BDC2),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _slipRow('সিরিয়াল নাম্বার:', banglaSerial),
-                            _slipRow('নাম:', widget.voter.name),
-                            _slipRow(
-                              'ভোটার নং-',
-                              '$banglaVoterNo, লিঙ্গ: $banglaGender',
-                            ),
-                            _slipRow('পেশা:', widget.voter.occupation),
-                            _slipRow('জন্ম তারিখ:', banglaDob),
-                            _slipRow(
-                              'পিতা/স্বামী:',
-                              widget.voter.fatherOrHusband,
-                            ),
-                            _slipRow('মাতা:', widget.voter.mother),
-                            _slipRow('ঠিকানা:', widget.voter.address),
-                            _slipRow('এলাকা:', widget.voter.area),
-                            _slipRow(
-                              'ওয়ার্ড:',
-                              BanglaHelper.toBanglaDigits(
-                                widget.voter.displayWard,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Center(
-                              child: Text(
-                                softwareFooterInfo,
-                                style: const TextStyle(
-                                  fontStyle: FontStyle.italic,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12.5,
-                                  color: Colors.black87,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          height: 175,
+                          width: double.infinity,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Positioned.fill(
+                                child: Column(
+                                  children: [
+                                    Container(height: 4, color: Colors.white),
+                                    Container(
+                                      height: 24,
+                                      color: const Color(0xFF004D40),
+                                    ),
+                                    Container(height: 2.5, color: Colors.white),
+                                    Expanded(
+                                      child: Container(
+                                        color: const Color(0xFF9FB0B5),
+                                      ),
+                                    ),
+                                    Container(height: 2.5, color: Colors.white),
+                                    Container(
+                                      height: 24,
+                                      color: const Color(0xFF004D40),
+                                    ),
+                                    Container(height: 4, color: Colors.white),
+                                  ],
                                 ),
                               ),
-                            ),
-                          ],
+                              Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      width: 150,
+                                      height: 150,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.black87,
+                                          width: 2.5,
+                                        ),
+                                        color: Colors.white,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                              0.25,
+                                            ),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: ClipOval(
+                                        child: _buildImage(
+                                          _candidate?.candidateImage,
+                                          width: 150,
+                                          height: 150,
+                                        ),
+                                      ),
+                                    ),
+                                    Transform.translate(
+                                      offset: const Offset(-22, 0),
+                                      child: Container(
+                                        width: 95,
+                                        height: 95,
+                                        padding: const EdgeInsets.all(5),
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.black87,
+                                            width: 2.5,
+                                          ),
+                                          color: Colors.white,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                0.3,
+                                              ),
+                                              blurRadius: 6,
+                                              offset: const Offset(1, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipOval(
+                                          child: _buildSymbolImage(
+                                            _candidate?.symbolImage,
+                                            width: 95,
+                                            height: 95,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(6, 6, 6, 4),
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(
+                              color: Colors.black87,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Text(
+                            '${_candidate?.name ?? "মুহাম্মদ সাইদুল ইসলাম"} কে ${_candidate?.symbolName ?? "তালা"} মার্কায় ভোট দিন',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Bangla',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+
+                        if (_candidate?.electionDate != null &&
+                            _candidate!.electionDate.trim().isNotEmpty)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.symmetric(horizontal: 6),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            color: const Color(0xFFE0F2F1),
+                            child: Text(
+                              'নির্বাচনের তারিখ: ${_candidate!.electionDate}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'Bangla',
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF004D40),
+                              ),
+                            ),
+                          ),
+
+                        // 🔴 ভোট কেন্দ্রের নাম (২ লাইনে সুন্দরভাবে দেখা যাবে)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(6, 4, 6, 0),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          color: const Color(0xFF004D40),
+                          child: Text(
+                            'ভোট কেন্দ্র: ${widget.voter.centerName}',
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Bangla',
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14.5,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+                          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                          color: const Color(0xFFA6BDC2),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _slipRow('সিরিয়াল নাম্বার:', banglaSerial),
+                              _slipRow('নাম:', widget.voter.name),
+                              _slipRow(
+                                'ভোটার নং-',
+                                '$banglaVoterNo, লিঙ্গ: $banglaGender',
+                              ),
+                              _slipRow(
+                                'জন্ম তারিখ:',
+                                '$banglaDob,   পেশা: ${widget.voter.occupation}',
+                              ),
+                              _slipRow(
+                                'পিতা/স্বামী:',
+                                widget.voter.fatherOrHusband,
+                              ),
+                              _slipRow('মাতা:', widget.voter.mother),
+                              _slipRow('ঠিকানা:', widget.voter.address),
+                              _slipRow('এলাকা:', widget.voter.area),
+                              _slipRow(
+                                'ওয়ার্ড:',
+                                BanglaHelper.toBanglaDigits(
+                                  widget.voter.displayWard,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Center(
+                                child: Text(
+                                  softwareFooterInfo,
+                                  style: const TextStyle(
+                                    fontFamily: 'Bangla',
+                                    fontStyle: FontStyle.italic,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13.5,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -546,254 +681,16 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
             ),
           ),
 
-          // =========================================================================
-          // ২. 🔴 সম্পূর্ণ উপর থেকে নিচে লম্বালম্বি থার্মাল প্রিন্ট স্লিপ (Vertical POS Format)
-          // =========================================================================
+          // প্রিন্ট স্লিপ
           Transform.translate(
-            offset: const Offset(
-              -10000,
-              -10000,
-            ), // স্ক্রিনে অদৃশ্য থাকবে, প্রিন্টারে হুবহু এটি যাবে
+            offset: const Offset(-10000, -10000),
             child: RepaintBoundary(
               key: _thermalPrintKey,
-              child: Container(
-                width:
-                    380, // থার্মাল পেপার রোলের আসল প্রস্থ (৫৮ মিমি / ৮০ মিমি)
-                padding: const EdgeInsets.all(6),
-                color: Colors.white,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ১. শীর্ষ অংশ: প্রার্থীর বক্স (উপরে)
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black, width: 1.2),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            _candidate?.electionTitle ?? 'নির্বাচন ২০২৪',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: Colors.black,
-                            ),
-                          ),
-                          Text(
-                            _candidate?.postTitle ?? 'পদপ্রার্থী',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: Colors.black,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          RichText(
-                            textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 13,
-                                fontFamily: 'Hind Siliguri',
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: '${_candidate?.name ?? ""} ',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const TextSpan(text: 'কে\n'),
-                                TextSpan(
-                                  text:
-                                      '${_candidate?.symbolName ?? ""} মার্কায় ',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const TextSpan(text: 'ভোট দিন'),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 100,
-                                height: 95,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black54),
-                                ),
-                                child: _buildImage(
-                                  _candidate?.candidateImage,
-                                  width: 100,
-                                  height: 95,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Container(
-                                width: 75,
-                                height: 95,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black54),
-                                ),
-                                child: _buildSymbolImage(
-                                  _candidate?.symbolImage,
-                                  width: 75,
-                                  height: 95,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ২. মাঝখানের অনুভূমিক কাটার দাগ (✂️)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Container(height: 1, color: Colors.black54),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 6),
-                            child: Text('✂️', style: TextStyle(fontSize: 13)),
-                          ),
-                          Expanded(
-                            child: Container(height: 1, color: Colors.black54),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ৩. নিচের অংশ: ভোটারের তথ্য বক্স (নিচে)
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black, width: 1.2),
-                      ),
-                      child: Stack(
-                        children: [
-                          if (_candidate?.symbolImage != null)
-                            Positioned.fill(
-                              child: Opacity(
-                                opacity: 0.12,
-                                child: Center(
-                                  child: _buildSymbolImage(
-                                    _candidate?.symbolImage,
-                                    width: 120,
-                                    height: 120,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'কেন্দ্রঃ ${widget.voter.centerName}   এলাকাঃ ${widget.voter.area}',
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                ),
-                                maxLines: 2,
-                              ),
-                              const Divider(
-                                color: Colors.black,
-                                thickness: 1,
-                                height: 6,
-                              ),
-                              RichText(
-                                text: TextSpan(
-                                  style: const TextStyle(
-                                    color: Colors.black,
-                                    fontSize: 13,
-                                    fontFamily: 'Hind Siliguri',
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: '$banglaSerial. ',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const TextSpan(text: 'নামঃ '),
-                                    TextSpan(
-                                      text: widget.voter.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              _thermalLine(
-                                'ভোটার নং:',
-                                '$banglaVoterNo (লিঙ্গ: $banglaGender)',
-                              ),
-                              _thermalLine('পেশা:', widget.voter.occupation),
-                              _thermalLine('জন্মঃ', banglaDob),
-                              _thermalLine(
-                                'পিতা/স্বামী:',
-                                widget.voter.fatherOrHusband,
-                              ),
-                              _thermalLine('মাতাঃ', widget.voter.mother),
-                              _thermalLine('ঠিকানাঃ', widget.voter.address),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-
-                    // ৪. ফুটার
-                    Center(
-                      child: Text(
-                        thermalFooterInfo,
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          color: Colors.black87,
-                          fontStyle: FontStyle.italic,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _thermalLine(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label ',
-            style: const TextStyle(fontSize: 11.5, color: Colors.black),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: Colors.black,
-                fontWeight: FontWeight.w600,
+              child: VoterPrintSlip(
+                candidate: _candidate,
+                voter: widget.voter,
+                footerText: thermalFooterInfo,
+                isRotated90: true,
               ),
             ),
           ),
@@ -804,60 +701,32 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
 
   Widget _slipRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label ',
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
+      padding: const EdgeInsets.symmetric(vertical: 0.6),
+      child: SizedBox(
+        width: double.infinity,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: RichText(
+            maxLines: 1,
+            text: TextSpan(
               style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
+                fontFamily: 'Bangla',
+                fontSize: 18.5,
                 color: Colors.black87,
+                height: 1.15,
               ),
+              children: [
+                TextSpan(
+                  text: '$label ',
+                  style: const TextStyle(fontWeight: FontWeight.normal),
+                ),
+                TextSpan(
+                  text: value,
+                  style: const TextStyle(fontWeight: FontWeight.normal),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionBtn(
-    String title,
-    Color color,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        child: ElevatedButton.icon(
-          onPressed: onTap,
-          icon: Icon(icon, size: 13, color: Colors.white),
-          label: Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10.5,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(5),
-            ),
-            elevation: 1,
           ),
         ),
       ),

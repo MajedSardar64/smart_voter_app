@@ -3,6 +3,11 @@
     <!-- ইন্টারনেট ও নেটওয়ার্ক পারমিশন -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- ক্যামেরা পারমিশন -->
     <uses-permission android:name="android.permission.CAMERA"/>
@@ -16,7 +21,7 @@
         android:required="false" />
 
     <application
-            android:label="স্মার্ট ভোটার"
+            android:label="স্মার্ট ভোটার স্লিপ"
             android:name="${applicationName}"
             android:icon="@mipmap/ic_launcher"
             android:allowBackup="false"

@@ -72,15 +72,43 @@ class VoterDownloadManager {
     }
   }
 
-  // ইন্টারনেট যাচাই সহ ব্যাকগ্রাউন্ড ডাউনলোড
-  Future<void> startIncrementalDownload(List<String> areasToDownload) async {
+  // 🔴 নির্দিষ্ট একটি এলাকা ক্লিন করে ফ্রেশ রি-ডাউনলোড/আপডেট করা
+  Future<bool> reSyncSingleArea(String areaName) async {
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity.contains(ConnectivityResult.none)) return false;
+
+    try {
+      final List<Voter> voters = await VoterApiService.fetchVotersForSingleArea(
+        areaName,
+      );
+
+      // ১. আগের ডাটা মুছে ফেলা
+      await DBService.instance.deleteAreaVoters(areaName);
+
+      // ২. নতুন ডাটা ইনসার্ট করা
+      if (voters.isNotEmpty) {
+        await DBService.instance.saveVotersFromApi(voters);
+      }
+
+      await syncWithDatabase();
+      return true;
+    } catch (e) {
+      print('ReSync Error: $e');
+      return false;
+    }
+  }
+
+  // ইন্টারনেট যাচাই সহ ব্যাকগ্রাউন্ড ডাউনলোড ও আপডেট
+  Future<void> startIncrementalDownload(
+    List<String> areasToDownload, {
+    bool isUpdateMode = false,
+  }) async {
     if (_isProcessing || areasToDownload.isEmpty) return;
 
     final Set<String> savedAreas =
         (await DBService.instance.getDownloadedAreas()).toSet();
     int currentSavedVoters = await DBService.instance.getSearchCount();
 
-    // ১. ইন্টারনেট কানেকশন চেক
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity.contains(ConnectivityResult.none)) {
       progressNotifier.value = DownloadProgressState(
@@ -97,9 +125,11 @@ class VoterDownloadManager {
     }
 
     _isProcessing = true;
-    final pendingAreas = areasToDownload
-        .where((a) => !savedAreas.contains(a))
-        .toList();
+
+    // যদি আপডেট মোড না হয়, তবে শুধু বাকি এলাকাগুলো নেবে। আর আপডেট মোড হলে সবগুলোই রি-সিঙ্ক করবে
+    final pendingAreas = isUpdateMode
+        ? areasToDownload
+        : areasToDownload.where((a) => !savedAreas.contains(a)).toList();
 
     if (pendingAreas.isEmpty) {
       _isProcessing = false;
@@ -117,7 +147,7 @@ class VoterDownloadManager {
     progressNotifier.value = DownloadProgressState(
       status: DownloadStatus.running,
       completedAreasCount: savedAreas.length,
-      totalAreasCount: areasToDownload.length,
+      totalAreasCount: pendingAreas.length,
       totalVotersSaved: currentSavedVoters,
       currentProcessingArea: pendingAreas.first,
       savedAreaNames: savedAreas,
@@ -130,8 +160,8 @@ class VoterDownloadManager {
 
       progressNotifier.value = DownloadProgressState(
         status: DownloadStatus.running,
-        completedAreasCount: savedAreas.length,
-        totalAreasCount: areasToDownload.length,
+        completedAreasCount: i,
+        totalAreasCount: pendingAreas.length,
         totalVotersSaved: currentSavedVoters,
         currentProcessingArea: areaName,
         savedAreaNames: savedAreas,
@@ -145,27 +175,18 @@ class VoterDownloadManager {
           final List<Voter> voters =
               await VoterApiService.fetchVotersForSingleArea(areaName);
 
+          // 🔴 আপডেটের সময় ডুপ্লিকেট রোধে আগের ডাটা মুছে ফ্রেশ সেভ করা
+          await DBService.instance.deleteAreaVoters(areaName);
+
           if (voters.isNotEmpty) {
             await DBService.instance.saveVotersFromApi(voters);
-            currentSavedVoters += voters.length;
+            currentSavedVoters = await DBService.instance.getSearchCount();
             savedAreas.add(areaName);
-            areaSuccess = true;
-          } else {
-            // যদি সার্ভারে কোনো ডাটা না থাকে
-            areaSuccess = true;
           }
+          areaSuccess = true;
 
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('hasDownloadedData', true);
-
-          progressNotifier.value = DownloadProgressState(
-            status: DownloadStatus.running,
-            completedAreasCount: savedAreas.length,
-            totalAreasCount: areasToDownload.length,
-            totalVotersSaved: currentSavedVoters,
-            currentProcessingArea: '',
-            savedAreaNames: savedAreas,
-          );
 
           await Future.delayed(const Duration(milliseconds: 25));
         } catch (e) {
@@ -181,12 +202,11 @@ class VoterDownloadManager {
 
     _isProcessing = false;
 
-    // যদি সবগুলোই ফেইল করে (সার্ভার ডাউন/নেট অফ)
     if (failedCount == pendingAreas.length && pendingAreas.isNotEmpty) {
       progressNotifier.value = DownloadProgressState(
         status: DownloadStatus.error,
         completedAreasCount: savedAreas.length,
-        totalAreasCount: areasToDownload.length,
+        totalAreasCount: pendingAreas.length,
         totalVotersSaved: currentSavedVoters,
         currentProcessingArea: '',
         savedAreaNames: savedAreas,
@@ -197,7 +217,7 @@ class VoterDownloadManager {
       progressNotifier.value = DownloadProgressState(
         status: DownloadStatus.completed,
         completedAreasCount: savedAreas.length,
-        totalAreasCount: areasToDownload.length,
+        totalAreasCount: pendingAreas.length,
         totalVotersSaved: currentSavedVoters,
         currentProcessingArea: '',
         savedAreaNames: savedAreas,
