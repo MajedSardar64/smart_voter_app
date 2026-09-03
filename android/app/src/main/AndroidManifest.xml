@@ -1,9 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ইন্টারনেট পারমিশন (যদি না থাকে) -->
+    <!-- ইন্টারনেট ও নেটওয়ার্ক পারমিশন -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <!-- ক্যামেরা পারমিশন -->
     <uses-permission android:name="android.permission.CAMERA"/>
+
+    <!-- ক্যামেরা ফিচার (সব ডিভাইসে যেন অ্যাপ ইন্সটল হতে সমস্যা না হয়) -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
 
     <application
             android:label="স্মার্ট ভোটার"
@@ -31,6 +41,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- Google ML Kit (টেক্সট/ভোটার কার্ড স্ক্যান করার জন্য প্রয়োজনীয় মডেল অটো-ডাউনলোড মেটা-ডাটা) -->
+        <meta-data
+            android:name="com.google.ml.vision.DEPENDENCIES"
+            android:value="ocr" />
 
         <meta-data
                 android:name="flutterEmbedding"

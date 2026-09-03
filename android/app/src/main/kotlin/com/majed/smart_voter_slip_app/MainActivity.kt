@@ -1,4 +1,4 @@
-package com.example.smart_voter_app
+package com.majed.smart_voter_slip_app
 
 import io.flutter.embedding.android.FlutterActivity
 

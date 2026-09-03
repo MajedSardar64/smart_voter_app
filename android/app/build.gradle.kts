@@ -14,17 +14,23 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.smart_voter_app"
+    namespace = "com.majed.smart_voter_slip_app"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-
+   
+    signingConfigs {
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
     defaultConfig {
-        applicationId = "com.example.smart_voter_app"
+        applicationId = "com.majed.smart_voter_slip_app"
         minSdk = flutter.minSdkVersion // ক্যামেরা ও স্মার্ট স্ক্যানারের জন্য ন্যূনতম নিরাপদ মান
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -61,4 +67,10 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
