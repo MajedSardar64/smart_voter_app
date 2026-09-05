@@ -9,67 +9,36 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   Future<Map<String, dynamic>> _getDashboardData() async {
-    // 🔴 ওয়েব ভার্সনে সরাসরি আসল ভোটার সংখ্যা ডিসপ্লে (ওভারভিউয়ের সাথে হুবহু সমান)
-    if (kIsWeb) {
-      final cand = await AuthService.getActiveCandidate();
-      if (cand == null) {
-        return {
-          'totalVoters': 0,
-          'totalAreas': 0,
-          'totalCenters': 0,
-          'areaBreakdown': [],
-          'centerBreakdown': [],
-        };
-      }
+    if (!kIsWeb) {
+      return await DBService.instance.getDashboardStats();
+    }
 
-      int totalAreas = cand.assignedWards.length;
-      int totalCenters = cand.assignedWards.map((w) => w.wardNo).toSet().length;
-
-      // 🔴 সার্ভার থেকে আসা আসল মোট ভোটার সংখ্যা (ওভারভিউয়ের সাথে ১০০% সমান)
-      int totalVoters = cand.totalVoters > 0
-          ? cand.totalVoters
-          : cand.assignedWards.fold(0, (sum, w) => sum + w.totalVoters);
-
-      List<Map<String, dynamic>> areaBreakdown = cand.assignedWards.map((w) {
-        int count = w.totalVoters > 0
-            ? w.totalVoters
-            : (totalVoters > 0 && totalAreas > 0
-                  ? (totalVoters / totalAreas).round()
-                  : 0);
-        return {
-          'area': w.areaName,
-          'maleCount': (count * 0.52).round(),
-          'femaleCount': (count * 0.48).round(),
-          'hijraCount': 0,
-          'total': count,
-        };
-      }).toList();
-
-      List<Map<String, dynamic>> centerBreakdown = cand.assignedWards.map((w) {
-        int count = w.totalVoters > 0
-            ? w.totalVoters
-            : (totalVoters > 0 && totalAreas > 0
-                  ? (totalVoters / totalAreas).round()
-                  : 0);
-        return {
-          'center': '${w.unionOrPouro} (ওয়ার্ড: ${w.wardNo})',
-          'startSerial': 1,
-          'endSerial': count,
-          'totalCount': count,
-        };
-      }).toList();
-
+    final cand = await AuthService.getActiveCandidate();
+    if (cand == null) {
       return {
-        'totalVoters': totalVoters,
-        'totalAreas': totalAreas,
-        'totalCenters': totalCenters,
-        'areaBreakdown': areaBreakdown,
-        'centerBreakdown': centerBreakdown,
+        'totalVoters': 0,
+        'totalAreas': 0,
+        'totalCenters': 0,
+        'migratedVoters': 0,
+        'areaBreakdown': [],
+        'centerBreakdown': [],
       };
     }
 
-    // মোবাইল ফোনে অফলাইন ডাটাবেজ থেকে লোড
-    return DBService.instance.getDashboardStats();
+    int totalAreas = cand.assignedWards.length;
+    int totalCenters = cand.assignedWards.map((w) => w.wardNo).toSet().length;
+    int totalVoters = cand.totalVoters > 0
+        ? cand.totalVoters
+        : cand.assignedWards.fold(0, (sum, w) => sum + w.totalVoters);
+
+    return {
+      'totalVoters': totalVoters,
+      'totalAreas': totalAreas,
+      'totalCenters': totalCenters,
+      'migratedVoters': 0,
+      'areaBreakdown': [],
+      'centerBreakdown': [],
+    };
   }
 
   @override
@@ -86,8 +55,17 @@ class DashboardScreen extends StatelessWidget {
         }
 
         final data = snapshot.data!;
+        final int totalVotersInt =
+            int.tryParse(data['totalVoters']?.toString() ?? '0') ?? 0;
+        final int migratedVotersInt =
+            int.tryParse((data['migratedVoters'] ?? 0).toString()) ?? 0;
+        final int totalWithMigratedInt = totalVotersInt + migratedVotersInt;
+
         final totalVoters = BanglaHelper.toBanglaDigits(
-          data['totalVoters'].toString(),
+          totalVotersInt.toString(),
+        );
+        final totalWithMigrated = BanglaHelper.toBanglaDigits(
+          totalWithMigratedInt.toString(),
         );
         final totalAreas = BanglaHelper.toBanglaDigits(
           data['totalAreas'].toString(),
@@ -95,127 +73,208 @@ class DashboardScreen extends StatelessWidget {
         final totalCenters = BanglaHelper.toBanglaDigits(
           data['totalCenters'].toString(),
         );
+        final totalMigrated = BanglaHelper.toBanglaDigits(
+          migratedVotersInt.toString(),
+        );
+
         final List<Map<String, dynamic>> areaBreakdown =
-            List<Map<String, dynamic>>.from(data['areaBreakdown']);
+            List<Map<String, dynamic>>.from(data['areaBreakdown'] ?? []);
         final List<Map<String, dynamic>> centerBreakdown =
-            List<Map<String, dynamic>>.from(data['centerBreakdown']);
+            List<Map<String, dynamic>>.from(data['centerBreakdown'] ?? []);
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'তথ্য সারসংক্ষেপ',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Color(0xFF1976D2),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _summaryRow('মোট ভোটার', totalVoters),
-              const Divider(),
-              _summaryRow('মোট ভোটার এলাকা', '$totalAreas টি'),
-              const Divider(),
-              _summaryRow('মোট কেন্দ্র', totalCenters),
-              const Divider(),
-              _summaryRow('মাইগ্রেট ভোটার', '০'),
-              const SizedBox(height: 25),
+        return ValueListenableBuilder<Candidate?>(
+          valueListenable: AuthService.activeCandidateNotifier,
+          builder: (context, candidate, _) {
+            final bool canShowCenters = candidate?.showPollingCenter != false;
 
-              const Text(
-                'এলাকা ভিত্তিক ভোটার সংখ্যা',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Color(0xFF1976D2),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              Table(
-                border: TableBorder.all(
-                  color: isDark ? Colors.white24 : Colors.grey.shade400,
-                ),
-                columnWidths: const {
-                  0: FlexColumnWidth(2.5),
-                  1: FlexColumnWidth(1.2),
-                  2: FlexColumnWidth(1.2),
-                  3: FlexColumnWidth(1.2),
-                },
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTableRow(
-                    ['এলাকা', 'পুরুষ/মহিলা', 'ভোটার সংখ্যা', 'মোট'],
-                    isHeader: true,
-                    isDark: isDark,
+                  const Text(
+                    'তথ্য',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Color(0xFF1976D2),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  for (var row in areaBreakdown) ...[
-                    _buildTableRow([
-                      row['area'].toString(),
-                      'পুরুষ',
-                      BanglaHelper.toBanglaDigits(row['maleCount'].toString()),
-                      BanglaHelper.toBanglaDigits(row['total'].toString()),
-                    ], isDark: isDark),
-                    _buildTableRow([
-                      row['area'].toString(),
-                      'মহিলা',
-                      BanglaHelper.toBanglaDigits(
-                        row['femaleCount'].toString(),
+                  const SizedBox(height: 10),
+                  _summaryRow('মোট ভোটার', totalVoters),
+                  const Divider(),
+                  _summaryRow(
+                    'মাইগ্রেট সহ মোট ভোটার সংখ্যা',
+                    totalWithMigrated,
+                  ),
+                  const Divider(),
+                  _summaryRow('মোট ভোটার এলাকা', '$totalAreas টি'),
+                  const Divider(),
+                  _summaryRow(
+                    'মোট ভোটকেন্দ্র',
+                    canShowCenters ? '$totalCenters টি' : 'অপ্রকাশিত',
+                  ),
+                  const Divider(),
+                  _summaryRow('মাইগ্রেট ভোটার', totalMigrated),
+                  const SizedBox(height: 25),
+
+                  const Text(
+                    'এলাকা ভিত্তিক ভোটার সংখ্যা',
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Color(0xFF1976D2),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Table(
+                    border: TableBorder.all(
+                      color: isDark ? Colors.white24 : Colors.grey.shade400,
+                    ),
+                    columnWidths: const {
+                      0: FlexColumnWidth(2.5),
+                      1: FlexColumnWidth(1.2),
+                      2: FlexColumnWidth(1.2),
+                      3: FlexColumnWidth(1.2),
+                    },
+                    children: [
+                      _buildTableRow(
+                        ['এলাকা', 'পুরুষ/মহিলা', 'ভোটার সংখ্যা', 'মোট'],
+                        isHeader: true,
+                        isDark: isDark,
                       ),
-                      '',
-                    ], isDark: isDark),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 30),
-
-              const Text(
-                'কেন্দ্র ভিত্তিক ভোটার সংখ্যা',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Color(0xFFE53935),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              Table(
-                border: TableBorder.all(
-                  color: isDark ? Colors.white24 : Colors.grey.shade400,
-                ),
-                columnWidths: const {
-                  0: FlexColumnWidth(3.0),
-                  1: FlexColumnWidth(1.0),
-                  2: FlexColumnWidth(1.2),
-                  3: FlexColumnWidth(1.2),
-                },
-                children: [
-                  _buildTableRow(
-                    ['এলাকা / কেন্দ্র', 'থেকে', 'পর্যন্ত', 'ভোটার সংখ্যা'],
-                    isHeader: true,
-                    isDark: isDark,
-                  ),
-                  for (var row in centerBreakdown)
-                    _buildTableRow(
-                      [
-                        row['center'].toString(),
-                        BanglaHelper.toBanglaDigits(
-                          row['startSerial'].toString(),
-                        ),
-                        BanglaHelper.toBanglaDigits(
-                          row['endSerial'].toString(),
-                        ),
-                        BanglaHelper.toBanglaDigits(
-                          row['totalCount'].toString(),
-                        ),
+                      for (var row in areaBreakdown) ...[
+                        _buildTableRow([
+                          row['area'].toString(),
+                          'পুরুষ',
+                          BanglaHelper.toBanglaDigits(
+                            row['maleCount'].toString(),
+                          ),
+                          BanglaHelper.toBanglaDigits(row['total'].toString()),
+                        ], isDark: isDark),
+                        _buildTableRow([
+                          row['area'].toString(),
+                          'মহিলা',
+                          BanglaHelper.toBanglaDigits(
+                            row['femaleCount'].toString(),
+                          ),
+                          '',
+                        ], isDark: isDark),
                       ],
-                      isCenterTable: true,
-                      isDark: isDark,
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+
+                  const Text(
+                    'ভোটকেন্দ্র ও এলাকা ভিত্তিক ভোটার ক্রমিক (রেঞ্জ)',
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Color(0xFFE53935),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (!canShowCenters)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade300),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'অ্যাডমিন প্যানেল থেকে এই প্রার্থীর জন্য ভোট কেন্দ্র সংক্রান্ত তথ্য প্রদর্শন বন্ধ রাখা হয়েছে।',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.orange,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (centerBreakdown.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'কোনো ভোটকেন্দ্রের তথ্য সংরক্ষিত নেই। সেটিংস থেকে এলাকা ডাউনলোড/সিঙ্ক করুন।',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                      ),
+                    )
+                  else
+                    Table(
+                      border: TableBorder.all(
+                        color: isDark ? Colors.white24 : Colors.grey.shade400,
+                      ),
+                      columnWidths: const {
+                        0: FlexColumnWidth(2.8),
+                        1: FlexColumnWidth(1.0),
+                        2: FlexColumnWidth(1.0),
+                        3: FlexColumnWidth(1.3),
+                      },
+                      children: [
+                        _buildTableRow(
+                          [
+                            'ভোটকেন্দ্র ও এলাকা',
+                            'থেকে',
+                            'পর্যন্ত',
+                            'মোট ভোটার',
+                          ],
+                          isHeader: true,
+                          isDark: isDark,
+                        ),
+                        for (var row in centerBreakdown) ...[
+                          () {
+                            String serialPrefix = '';
+                            final sRaw =
+                                row['centerSerial']?.toString().trim() ?? '';
+                            if (sRaw.isNotEmpty) {
+                              serialPrefix =
+                                  '[ক্রমিক: ${BanglaHelper.toBanglaDigits(sRaw)}] ';
+                            }
+
+                            final booths =
+                                row['boothsCount'] != null &&
+                                    row['boothsCount'].toString().isNotEmpty
+                                ? ' • বুথ: ${BanglaHelper.toBanglaDigits(row['boothsCount'].toString())}'
+                                : '';
+
+                            final centerCellText =
+                                '$serialPrefix${row['center']} • [${row['gender'] ?? 'পুরুষ'}]\n[এলাকা: ${row['area'] ?? ''}]$booths';
+
+                            return _buildTableRow(
+                              [
+                                centerCellText,
+                                BanglaHelper.toBanglaDigits(
+                                  row['startSerial'].toString(),
+                                ),
+                                BanglaHelper.toBanglaDigits(
+                                  row['endSerial'].toString(),
+                                ),
+                                '${BanglaHelper.toBanglaDigits(row['totalCount'].toString())}${row['migratedCount'] != null && (row['migratedCount'] as int) > 0 ? "\n(মাইগ্রেট: ${BanglaHelper.toBanglaDigits(row['migratedCount'].toString())})" : ""}',
+                              ],
+                              isCenterTable: true,
+                              isDark: isDark,
+                            );
+                          }(),
+                        ],
+                      ],
                     ),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -252,16 +311,25 @@ class DashboardScreen extends StatelessWidget {
             : Colors.transparent,
       ),
       children: cells.map((cell) {
+        final isMale = cell.contains('[পুরুষ]');
+        final isFemale = cell.contains('[মহিলা]');
+        final isHijra = cell.contains('[হিজড়া]');
+
+        Color? textColor;
+        if (isCenterTable && !isHeader) {
+          if (isMale) textColor = const Color(0xFF1D4ED8);
+          if (isFemale) textColor = const Color(0xFFBE185D);
+          if (isHijra) textColor = const Color(0xFFD97706);
+        }
+
         return Padding(
           padding: const EdgeInsets.all(6),
           child: Text(
             cell,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
-              color: isCenterTable && !isHeader && cell.contains('(')
-                  ? const Color(0xFFE11D48)
-                  : null,
+              color: textColor,
             ),
           ),
         );

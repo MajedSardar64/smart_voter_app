@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../models/candidate.dart';
 import '../models/voter.dart';
 import '../services/api_service.dart';
 import '../services/db_service.dart';
@@ -40,6 +41,7 @@ class SearchResultsScreen extends StatefulWidget {
 class _SearchResultsScreenState extends State<SearchResultsScreen> {
   final List<Voter> _voters = [];
   final ScrollController _scrollController = ScrollController();
+  Candidate? _candidate;
 
   int _totalCount = 0;
   int _offset = 0;
@@ -55,6 +57,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       FocusManager.instance.primaryFocus?.unfocus();
     });
 
+    _loadCandidateAndInit();
+  }
+
+  void _loadCandidateAndInit() async {
+    final cand = await AuthService.getActiveCandidate();
+    if (mounted) setState(() => _candidate = cand);
+
     if (widget.directResults != null) {
       _voters.addAll(widget.directResults!);
       _totalCount = widget.directResults!.length;
@@ -69,7 +78,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   void _initLoad() async {
     setState(() => _isLoadingInitial = true);
 
-    // 🔴 ওয়েব ভার্সন হলে সরাসরি লাইভ এপিআই সার্চ (ward সহ)
     if (kIsWeb) {
       String searchType = 'name';
       String keyword = '';
@@ -94,7 +102,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       final result = await VoterApiService.searchVotersOnline(
         searchType: searchType,
         keyword: keyword,
-        ward: widget.ward, // 🔴 নির্বাচিত ওয়ার্ড ফিল্টার
+        ward: widget.ward,
         area: widget.area,
         gender: widget.gender,
         limit: _limit,
@@ -115,7 +123,6 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       return;
     }
 
-    // মোবাইল ডিভাইসে অফলাইন SQLite ডাটাবেজ থেকে সার্চ
     final count = await DBService.instance.getSearchCount(
       name: widget.name,
       dob: widget.dob,
@@ -181,7 +188,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         final result = await VoterApiService.searchVotersOnline(
           searchType: searchType,
           keyword: keyword,
-          ward: widget.ward, // 🔴 নির্বাচিত ওয়ার্ড ফিল্টার
+          ward: widget.ward,
           area: widget.area,
           gender: widget.gender,
           limit: _limit,
@@ -236,6 +243,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     String banglaCurrent = BanglaHelper.toBanglaDigits(
       _voters.length.toString(),
     );
+
+    final bool canShowCenter = _candidate?.showPollingCenter != false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('ভোটার অনুসন্ধান ফলাফল')),
@@ -302,6 +311,11 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                             }
 
                             final voter = _voters[index];
+                            final bool showThisCenter =
+                                canShowCenter &&
+                                voter.centerName.isNotEmpty &&
+                                voter.centerName != 'অনির্ধারিত কেন্দ্র';
+
                             return ListTile(
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -338,15 +352,17 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                                             : const Color(0xFF475569),
                                       ),
                                     ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    voter.centerName,
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      color: Color(0xFF0D9488),
-                                      fontWeight: FontWeight.w500,
+                                  if (showThisCenter) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      voter.centerName,
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        color: Color(0xFF0D9488),
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                               trailing: const Icon(

@@ -38,7 +38,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isThermalEnabled = val);
   }
 
-  // 🔴 এক ক্লিকে সম্পূর্ণ অ্যাপ ও ওয়েবের ক্যাশ ও ডাটা ক্লিয়ার করা
   void _clearAllAppCache() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -77,11 +76,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirm != true || !mounted) return;
 
-    // ১. SharedPreferences ক্লিয়ার
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
-    // ২. মোবাইলে SQLite ডাটাবেজ ক্লিয়ার
     if (!kIsWeb) {
       await DBService.instance.clearAllVoters();
     }
@@ -96,7 +93,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // প্রিন্টার সাহায্যকারী ডায়ালগ
   void _showPrinterHelp() {
     showDialog(
       context: context,
@@ -265,10 +261,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 14),
 
-          // মোবাইলের জন্য ডেটা সিঙ্ক বাটন (ওয়েবে লুকানো থাকবে)
+          // 🔴 মোবাইল অফলাইন ডেটাবেজ ও ভোটকেন্দ্র সিঙ্ক
           if (!kIsWeb) ...[
             _buildButton(
-              'পুনরায় ডেটা সিঙ্ক ও ওয়ার্ড পরিবর্তন',
+              'ভোটার ডেটাবেজ ও কেন্দ্র অফলাইন সিঙ্ক (Sync Wards)',
               const Color(0xFFE53935),
               () {
                 Navigator.push(
@@ -283,7 +279,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
           ],
 
-          // 🔴 প্রার্থীর নতুন এলাকা ও প্রোফাইল রিফ্রেশ বাটন
+          // 🔴 প্রার্থীর প্রোফাইল ও এলাকা রিফ্রেশ
           _buildButton(
             _isRefreshing
                 ? 'সার্ভার থেকে সিঙ্ক হচ্ছে...'
@@ -300,7 +296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       SnackBar(
                         content: Text(
                           ok
-                              ? 'প্রার্থীর তথ্য ও নতুন এলাকা সফলভাবে আপডেট হয়েছে!'
+                              ? 'প্রার্থীর তথ্য ও নতুন এলাকা সফলভাবে অফলাইনে আপডেট হয়েছে!'
                               : 'সার্ভারে কানেক্ট করা যায়নি!',
                         ),
                         backgroundColor: ok
@@ -312,7 +308,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 14),
 
-          // 🔴 ক্যাশ ও ডাটা ক্লিয়ার বাটন
+          // ক্যাশ ও ডেটা ক্লিয়ার
           _buildButton(
             'ক্যাশ ও ডেটা ক্লিয়ার করুন (Clear Cache & Reset)',
             Colors.red.shade700,

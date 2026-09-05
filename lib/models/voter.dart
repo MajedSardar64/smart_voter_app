@@ -1,3 +1,5 @@
+import '../utils/bangla_helper.dart';
+
 class Voter {
   final int id;
   final String serialNo;
@@ -10,12 +12,17 @@ class Voter {
   final String occupation;
   final String address;
   final String area;
-  final String unionOrWardId; // union_or_ward_id
-  final String unionWardId; // union_ward_id
-  final String unionOrWardName; // union_or_ward_name
-  final String unionWardName; // union_ward_name
-  final String ward; // সার্ভারের মূল নাম
+  final String unionOrWardId;
+  final String unionWardId;
+  final String unionOrWardName;
+  final String unionWardName;
+  final String ward;
   final String centerName;
+  final String centerNo;
+  final String centerSerial;
+  final String boothsCount;
+  final String centerGenderLabel;
+  final int pollingCenterId;
   final bool isMigrated;
 
   Voter({
@@ -36,17 +43,29 @@ class Voter {
     this.unionWardName = '',
     required this.ward,
     required this.centerName,
+    this.centerNo = '',
+    this.centerSerial = '',
+    this.boothsCount = '',
+    this.centerGenderLabel = '',
+    this.pollingCenterId = 0,
     this.isMigrated = false,
   });
 
-  // ভোটারের তথ্য স্লিপে দেখানোর জন্য অটো-ওয়ার্ড ডিটেকশন
   String get displayWard {
     if (unionWardName.trim().isNotEmpty && unionWardName != '0') {
-      return unionWardName; // ইউনিয়ন পরিষদ হলে নিজস্ব ওয়ার্ড নম্বর (যেমন: ১ নং ওয়ার্ড)
+      return unionWardName;
     }
-    return ward.isNotEmpty
-        ? ward
-        : unionOrWardName; // পৌরসভা বা সিটি কর্পোরেশন হলে মূল ওয়ার্ড
+    return ward.isNotEmpty ? ward : unionOrWardName;
+  }
+
+  // কেন্দ্রের নামের সাথে বিকৃত করে কেন্দ্র নং জোড়া দেওয়া বন্ধ করা হয়েছে
+  String get fullCenterInfo {
+    List<String> parts = [];
+    if (centerName.isNotEmpty) parts.add(centerName);
+    if (boothsCount.isNotEmpty) {
+      parts.add('[বুথ: ${BanglaHelper.toBanglaDigits(boothsCount)}]');
+    }
+    return parts.join(' ');
   }
 
   Map<String, dynamic> toMap() {
@@ -68,19 +87,28 @@ class Voter {
       'union_ward_name': unionWardName,
       'ward': ward,
       'centerName': centerName,
+      'centerNo': centerNo,
+      'centerSerial': centerSerial,
+      'boothsCount': boothsCount,
+      'centerGenderLabel': centerGenderLabel,
+      'pollingCenterId': pollingCenterId,
       'isMigrated': isMigrated ? 1 : 0,
     };
   }
 
   factory Voter.fromMap(Map<String, dynamic> map) {
     return Voter(
-      id: map['id'] ?? 0,
-      serialNo: map['serialNo']?.toString() ?? '',
-      voterNo: map['voterNo']?.toString() ?? '',
+      id: map['id'] is int
+          ? map['id']
+          : (int.tryParse(map['id']?.toString() ?? '0') ?? 0),
+      serialNo:
+          map['serialNo']?.toString() ?? map['serial_no']?.toString() ?? '',
+      voterNo: map['voterNo']?.toString() ?? map['voter_no']?.toString() ?? '',
       name: map['name']?.toString() ?? '',
-      gender: map['gender']?.toString() ?? 'পুরুষ',
-      dob: map['dob']?.toString() ?? '',
-      fatherOrHusband: map['fatherOrHusband']?.toString() ?? '',
+      gender: BanglaHelper.formatGender(map['gender']?.toString() ?? 'পুরুষ'),
+      dob: map['dob']?.toString() ?? map['date_of_birth']?.toString() ?? '',
+      fatherOrHusband:
+          map['fatherOrHusband']?.toString() ?? map['father']?.toString() ?? '',
       mother: map['mother']?.toString() ?? '',
       occupation:
           (map['occupation'] != null &&
@@ -88,14 +116,42 @@ class Voter {
           ? map['occupation'].toString().trim()
           : 'প্রযোজ্য নয়',
       address: map['address']?.toString() ?? '',
-      area: map['area']?.toString() ?? '',
+      area: map['area']?.toString() ?? map['voter_area_name']?.toString() ?? '',
       unionOrWardId: map['union_or_ward_id']?.toString() ?? '',
       unionWardId: map['union_ward_id']?.toString() ?? '',
       unionOrWardName: map['union_or_ward_name']?.toString() ?? '',
       unionWardName: map['union_ward_name']?.toString() ?? '',
-      ward: map['ward']?.toString() ?? '',
-      centerName: map['centerName']?.toString() ?? '',
-      isMigrated: map['isMigrated'] == 1,
+      ward: map['ward']?.toString() ?? map['union_name']?.toString() ?? '',
+      centerName:
+          map['center_name']?.toString() ??
+          map['centerName']?.toString() ??
+          map['voter_center']?.toString() ??
+          'অনির্ধারিত কেন্দ্র',
+      centerNo:
+          map['center_no']?.toString() ?? map['centerNo']?.toString() ?? '',
+      centerSerial:
+          map['center_serial']?.toString() ??
+          map['centerSerial']?.toString() ??
+          '',
+      boothsCount:
+          map['booths_count']?.toString() ??
+          map['boothsCount']?.toString() ??
+          '',
+      centerGenderLabel: BanglaHelper.formatGender(
+        map['center_gender_label']?.toString() ??
+            map['centerGenderLabel']?.toString() ??
+            map['gender']?.toString() ??
+            'পুরুষ',
+      ),
+      pollingCenterId: map['polling_center_id'] is int
+          ? map['polling_center_id']
+          : (int.tryParse(
+                  map['pollingCenterId']?.toString() ??
+                      map['polling_center_id']?.toString() ??
+                      '0',
+                ) ??
+                0),
+      isMigrated: map['isMigrated'] == 1 || map['isMigrated'] == true,
     );
   }
 }

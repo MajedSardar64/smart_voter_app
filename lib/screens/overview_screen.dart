@@ -21,6 +21,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
   int _totalVoters = 0;
   int _totalAreas = 0;
   int _totalCenters = 0;
+  bool _canShowCenters = true;
 
   @override
   void initState() {
@@ -30,8 +31,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   void _loadOverviewData() async {
     final candidate = await AuthService.getActiveCandidate();
+    _canShowCenters = candidate?.showPollingCenter != false;
 
-    // 🔴 ওয়েব ভার্সনে রিয়েল ভোটার সংখ্যা ও এরিয়া হিসাব
     if (kIsWeb) {
       if (candidate != null) {
         _totalAreas = candidate.assignedWards.length;
@@ -39,7 +40,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
             .map((w) => w.wardNo)
             .toSet()
             .length;
-        // সার্ভারের আসল সংখ্যা থাকলে সরাসরি দেখাবে, অন্যথায় ওয়ার্ডগুলোর মোট যোগ করবে
         _totalVoters = candidate.totalVoters > 0
             ? candidate.totalVoters
             : candidate.assignedWards.fold(0, (sum, w) => sum + w.totalVoters);
@@ -49,7 +49,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
       return;
     }
 
-    // মোবাইল ডিভাইসে অফলাইন ডাটাবেজ থেকে লোড
     final areas = await DBService.instance.getDownloadedAreas();
     final count = await DBService.instance.getSearchCount();
     final db = await DBService.instance.database;
@@ -112,13 +111,13 @@ class _OverviewScreenState extends State<OverviewScreen> {
       valueListenable: AuthService.activeCandidateNotifier,
       builder: (context, candidate, _) {
         final geo = BanglaHelper.getGeoHierarchyFromStorage(candidate);
+        final bool showCenterCard = candidate?.showPollingCenter != false;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ১. প্রার্থীর সম্পূর্ণ পরিচিতি কার্ড
               if (candidate != null)
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -279,7 +278,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 ),
               const SizedBox(height: 12),
 
-              // ২. ৩টি কার্ড পাশাপাশি (সংরক্ষিত ভোটার, এলাকা ও ভোট কেন্দ্র)
               Row(
                 children: [
                   Expanded(
@@ -305,9 +303,11 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   Expanded(
                     child: _statCard(
                       'ভোট কেন্দ্র',
-                      '${BanglaHelper.toBanglaDigits(_totalCenters.toString())} টি',
+                      showCenterCard
+                          ? '${BanglaHelper.toBanglaDigits(_totalCenters.toString())} টি'
+                          : 'অপ্রকাশিত',
                       Icons.apartment,
-                      Colors.orange.shade800,
+                      showCenterCard ? Colors.orange.shade800 : Colors.grey,
                       isDark,
                     ),
                   ),
@@ -321,15 +321,13 @@ class _OverviewScreenState extends State<OverviewScreen> {
               ),
               const SizedBox(height: 8),
 
-              // 🔴 ৩০% হাইট কমানো ৬টি সার্চ টাইল
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
-                childAspectRatio:
-                    2.9, // 🔴 ৩০% হাইট কমে স্লিম ও দৃষ্টিনন্দন করা হয়েছে
+                childAspectRatio: 2.9,
                 children: [
                   _actionTile(
                     'নাম দিয়ে অনুসন্ধান',
@@ -393,9 +391,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
               ),
               const SizedBox(height: 14),
 
-              // 🔴 "ভোটার ডাটাবেজ ডাউনলোড" বাটনটি এখান থেকে সম্পূর্ণ মুছে ফেলা হয়েছে
-
-              // প্রার্থীর নির্বাচনী ব্যানার
               if (candidate != null &&
                   candidate.bannerImage != null &&
                   candidate.bannerImage!.trim().isNotEmpty) ...[

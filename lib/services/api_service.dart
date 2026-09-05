@@ -11,7 +11,9 @@ import '../utils/bangla_helper.dart';
 import '../utils/security_helper.dart';
 
 List<Voter> _parseVotersBackground(List<dynamic> list) {
-  return list.map((item) => Voter.fromMap(item)).toList();
+  return list
+      .map((item) => Voter.fromMap(Map<String, dynamic>.from(item)))
+      .toList();
 }
 
 class CandidateApiService {
@@ -63,6 +65,13 @@ class CandidateApiService {
             upazilaName: cData['upazila_name'] ?? '',
             totalVoters:
                 int.tryParse(cData['total_voters']?.toString() ?? '0') ?? 0,
+            // 🔴 সার্ভার থেকে প্রাপ্ত শো পোলিং সেন্টার স্ট্যাটাস
+            showPollingCenter: cData['show_polling_center'] == null
+                ? true
+                : (cData['show_polling_center'] == true ||
+                      cData['show_polling_center'] == 1 ||
+                      cData['show_polling_center'].toString() == '1' ||
+                      cData['show_polling_center'].toString() == 'true'),
             candidateImage: cData['candidate_image'],
             symbolImage: cData['symbol_image'],
             bannerImage: cData['banner_image'],
@@ -137,6 +146,12 @@ class CandidateApiService {
             upazilaName: cData['upazila_name'] ?? '',
             totalVoters:
                 int.tryParse(cData['total_voters']?.toString() ?? '0') ?? 0,
+            showPollingCenter: cData['show_polling_center'] == null
+                ? true
+                : (cData['show_polling_center'] == true ||
+                      cData['show_polling_center'] == 1 ||
+                      cData['show_polling_center'].toString() == '1' ||
+                      cData['show_polling_center'].toString() == 'true'),
             candidateImage: cData['candidate_image'],
             symbolImage: cData['symbol_image'],
             bannerImage: cData['banner_image'],
@@ -163,16 +178,23 @@ class VoterApiService {
     if (!kIsWeb) "User-Agent": "SmartVoterSecureClient/5.0",
   };
 
+  // 🔴 প্রার্থীর user_id স্বয়ংক্রিয়ভাবে নিশ্চিত করা হয়েছে
   static Future<List<Voter>> fetchVotersForSingleArea(
     String areaName, {
     String? userId,
   }) async {
     final url = "${AppConfig.apiBaseUrl}?action=download_voters";
 
+    String currentUserId = userId ?? '';
+    if (currentUserId.isEmpty) {
+      final cand = await AuthService.getActiveCandidate();
+      currentUserId = cand?.userId ?? '';
+    }
+
     try {
       final encryptedBodyString = SecurityHelper.encryptWholeRequest({
         "area_name": areaName,
-        "user_id": userId ?? '',
+        "user_id": currentUserId,
       });
 
       final response = await http
@@ -194,7 +216,6 @@ class VoterApiService {
     return [];
   }
 
-  // 🔴 ওয়েব ব্রাউজারের জন্য অনলাইন লাইভ সার্চ (ward ফিল্টারিং সহ)
   static Future<Map<String, dynamic>> searchVotersOnline({
     required String searchType,
     required String keyword,
@@ -236,21 +257,7 @@ class VoterApiService {
             (res['status'] == 'success' || res['data'] != null)) {
           final List rawList = res['data'] ?? [];
           final List<Voter> voters = rawList.map((item) {
-            return Voter(
-              id: int.tryParse(item['id']?.toString() ?? '0') ?? 0,
-              serialNo: item['serial_no']?.toString() ?? '',
-              voterNo: item['voter_no']?.toString() ?? '',
-              name: item['name']?.toString() ?? '',
-              gender: item['gender']?.toString() ?? 'পুরুষ',
-              dob: item['date_of_birth']?.toString() ?? '',
-              fatherOrHusband: item['father']?.toString() ?? '',
-              mother: item['mother']?.toString() ?? '',
-              occupation: item['occupation']?.toString() ?? 'প্রযোজ্য নয়',
-              address: item['address']?.toString() ?? '',
-              area: item['voter_area_name']?.toString() ?? '',
-              ward: item['union_name']?.toString() ?? '',
-              centerName: item['voter_center']?.toString() ?? '',
-            );
+            return Voter.fromMap(Map<String, dynamic>.from(item));
           }).toList();
           return {'voters': voters, 'count': res['count'] ?? voters.length};
         }
@@ -261,7 +268,6 @@ class VoterApiService {
     return {'voters': <Voter>[], 'count': 0};
   }
 
-  // 🔴 ওয়েব ব্রাউজারের জন্য অনলাইন ফ্যামিলি সার্চ
   static Future<List<Voter>> searchFamilyOnline(
     Voter voter, {
     String? userId,
@@ -313,6 +319,16 @@ class VoterApiService {
                   area: item['voter_area_name']?.toString() ?? '',
                   ward: item['union_name']?.toString() ?? '',
                   centerName: item['voter_center']?.toString() ?? '',
+                  centerNo: item['center_no']?.toString() ?? '',
+                  centerSerial: item['center_serial']?.toString() ?? '',
+                  boothsCount: item['booths_count']?.toString() ?? '',
+                  centerGenderLabel:
+                      item['center_gender_label']?.toString() ?? '',
+                  pollingCenterId:
+                      int.tryParse(
+                        item['polling_center_id']?.toString() ?? '0',
+                      ) ??
+                      0,
                 ),
               )
               .where((v) => v.voterNo != voter.voterNo)
@@ -323,5 +339,30 @@ class VoterApiService {
       print('Family search online error: $e');
     }
     return [];
+  }
+
+  static Future<Map<String, dynamic>> getDashboardStatsOnline(
+    String userId,
+  ) async {
+    final url = "${AppConfig.apiBaseUrl}?action=get_dashboard_stats";
+
+    try {
+      final encryptedBody = SecurityHelper.encryptWholeRequest({
+        "user_id": userId,
+      });
+      final response = await http
+          .post(Uri.parse(url), headers: _headers, body: encryptedBody)
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
+        if (res != null && res['status'] == 'success') {
+          return Map<String, dynamic>.from(res['data'] ?? {});
+        }
+      }
+    } catch (e) {
+      print('Dashboard stats online error: $e');
+    }
+    return {};
   }
 }

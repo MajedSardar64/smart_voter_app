@@ -13,7 +13,7 @@ class DBService {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('voter_data_encrypted_v1.db');
+    _database = await _initDB('voter_data_encrypted_v4.db');
     return _database!;
   }
 
@@ -24,12 +24,13 @@ class DBService {
     return await openDatabase(
       path,
       password: SecurityHelper.dbSecretKey,
-      version: 1,
+      version: 4,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE voters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             serialNo TEXT NOT NULL,
+            serialInt INTEGER NOT NULL DEFAULT 0,
             voterNo TEXT NOT NULL UNIQUE,
             name TEXT NOT NULL,
             gender TEXT NOT NULL,
@@ -45,6 +46,11 @@ class DBService {
             union_ward_name TEXT,
             ward TEXT NOT NULL,
             centerName TEXT NOT NULL,
+            centerNo TEXT,
+            centerSerial TEXT,
+            boothsCount TEXT,
+            centerGenderLabel TEXT,
+            pollingCenterId INTEGER,
             isMigrated INTEGER NOT NULL
           )
         ''');
@@ -52,8 +58,74 @@ class DBService {
         await db.execute('CREATE INDEX idx_ward ON voters(ward)');
         await db.execute('CREATE INDEX idx_name ON voters(name)');
         await db.execute('CREATE INDEX idx_voterNo ON voters(voterNo)');
+        await db.execute('CREATE INDEX idx_center ON voters(centerName)');
+        await db.execute('CREATE INDEX idx_serialInt ON voters(serialInt)');
+        await db.execute('CREATE INDEX idx_gender ON voters(gender)');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          try {
+            await db.execute('ALTER TABLE voters ADD COLUMN centerNo TEXT;');
+          } catch (_) {}
+          try {
+            await db.execute(
+              'ALTER TABLE voters ADD COLUMN centerSerial TEXT;',
+            );
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE voters ADD COLUMN boothsCount TEXT;');
+          } catch (_) {}
+          try {
+            await db.execute(
+              'ALTER TABLE voters ADD COLUMN centerGenderLabel TEXT;',
+            );
+          } catch (_) {}
+          try {
+            await db.execute(
+              'ALTER TABLE voters ADD COLUMN pollingCenterId INTEGER;',
+            );
+          } catch (_) {}
+          try {
+            await db.execute('CREATE INDEX idx_center ON voters(centerName);');
+          } catch (_) {}
+        }
+        if (oldVersion < 3) {
+          try {
+            await db.execute(
+              'ALTER TABLE voters ADD COLUMN serialInt INTEGER DEFAULT 0;',
+            );
+            await db.execute(
+              'CREATE INDEX idx_serialInt ON voters(serialInt);',
+            );
+          } catch (_) {}
+        }
+        if (oldVersion < 4) {
+          try {
+            await db.execute('CREATE INDEX idx_gender ON voters(gender);');
+          } catch (_) {}
+          try {
+            await db.rawUpdate('''
+              UPDATE voters 
+              SET serialInt = CAST(
+                REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                  serialNo, '০','0'), '১','1'), '২','2'), '৩','3'), '৪','4'), '৫','5'), '৬','6'), '৭','7'), '৮','8'), '৯','9'
+                ) AS INTEGER
+              )
+              WHERE serialInt = 0 OR serialInt IS NULL;
+            ''');
+          } catch (_) {}
+        }
       },
     );
+  }
+
+  // 🔴 যদি প্যানেল থেকে কেন্দ্র বন্ধ করা হয়, অফলাইন ডেটাবেজের কেন্দ্র মুছে দেওয়া
+  Future<void> clearAllPollingCenters() async {
+    final db = await instance.database;
+    await db.rawUpdate('''
+      UPDATE voters 
+      SET centerName = '', centerNo = '', centerSerial = '', boothsCount = '', pollingCenterId = 0
+    ''');
   }
 
   Future<int> saveVotersFromApi(List<Voter> voterList) async {
@@ -63,13 +135,28 @@ class DBService {
     await db.transaction((txn) async {
       var batch = txn.batch();
       for (var v in voterList) {
+        int serialInt =
+            int.tryParse(
+              BanglaHelper.toEnglishDigits(
+                v.serialNo.replaceAll(RegExp(r'[^\d০-৯]'), ''),
+              ),
+            ) ??
+            0;
+
         batch.rawInsert(
           '''
-          INSERT OR REPLACE INTO voters (serialNo, voterNo, name, gender, dob, fatherOrHusband, mother, occupation, address, area, union_or_ward_id, union_ward_id, union_or_ward_name, union_ward_name, ward, centerName, isMigrated)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT OR REPLACE INTO voters (
+            serialNo, serialInt, voterNo, name, gender, dob, fatherOrHusband, mother, 
+            occupation, address, area, union_or_ward_id, union_ward_id, 
+            union_or_ward_name, union_ward_name, ward, centerName, 
+            centerNo, centerSerial, boothsCount, centerGenderLabel, 
+            pollingCenterId, isMigrated
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''',
           [
             v.serialNo,
+            serialInt,
             v.voterNo,
             v.name,
             BanglaHelper.formatGender(v.gender),
@@ -85,6 +172,13 @@ class DBService {
             v.unionWardName,
             v.ward,
             v.centerName,
+            v.centerNo,
+            v.centerSerial,
+            v.boothsCount,
+            BanglaHelper.formatGender(
+              v.centerGenderLabel.isNotEmpty ? v.centerGenderLabel : v.gender,
+            ),
+            v.pollingCenterId,
             v.isMigrated ? 1 : 0,
           ],
         );
@@ -209,8 +303,8 @@ class DBService {
       args.addAll(['%$bn%', '%$en%']);
     }
     if (gender != null && gender != 'সকল') {
-      query += ' AND (gender = ? OR gender LIKE ?)';
-      args.addAll([gender, '%$gender%']);
+      query += ' AND gender = ?';
+      args.add(gender);
     }
     if (ward != null && ward != 'সকল') {
       query += ' AND ward = ?';
@@ -274,8 +368,8 @@ class DBService {
       args.addAll(['%$bn%', '%$en%']);
     }
     if (gender != null && gender != 'সকল') {
-      query += ' AND (gender = ? OR gender LIKE ?)';
-      args.addAll([gender, '%$gender%']);
+      query += ' AND gender = ?';
+      args.add(gender);
     }
     if (ward != null && ward != 'সকল') {
       query += ' AND ward = ?';
@@ -286,7 +380,7 @@ class DBService {
       args.add(area);
     }
 
-    query += ' ORDER BY CAST(serialNo AS INTEGER) ASC LIMIT ? OFFSET ?';
+    query += ' ORDER BY serialInt ASC, id ASC LIMIT ? OFFSET ?';
     args.addAll([limit, offset]);
 
     final result = await db.rawQuery(query, args);
@@ -360,7 +454,6 @@ class DBService {
     return result.map((json) => Voter.fromMap(json)).toList();
   }
 
-  // 🔴 অফলাইন ফ্যামিলি সার্চ (পিতা-মাতা উভয়ের মূল নাম ৫০% মিল এবং লিঙ্গভেদে সন্তান ৭০% মিল)
   Future<List<Voter>> searchFamily(Voter voter) async {
     final db = await instance.database;
 
@@ -387,7 +480,6 @@ class DBService {
     List<String> conditions = [];
     List<dynamic> args = [];
 
-    // ১. পিতা ও মাতা উভয় নামের মূল অংশ একত্রে অন্তত ৫০% মিল (সহোদর ভাই-বোন)
     if (coreFather.isNotEmpty && coreMother.isNotEmpty) {
       conditions.add('(fatherOrHusband LIKE ? AND mother LIKE ?)');
       args.addAll(['%$coreFather%', '%$coreMother%']);
@@ -402,8 +494,6 @@ class DBService {
       }
     }
 
-    // ২. লিঙ্গ অনুযায়ী সন্তান নির্বাচন (৭০% মিল):
-    // পুরুষ হলে পিতার ঘরে নিজের নাম, মহিলা হলে মাতার ঘরে নিজের নাম
     if (coreSelf.isNotEmpty) {
       if (gender == 'মহিলা') {
         conditions.add('(mother LIKE ?)');
@@ -431,8 +521,10 @@ class DBService {
       voter.id,
       voter.voterNo,
       ...args,
-      '%$coreFather%', '%$coreMother%', // স্কোর ৪০: পিতা-মাতা উভয় মিল
-      '%$coreSelf%', '%$coreSelf%', // স্কোর ২৫: সন্তান মিল
+      '%$coreFather%',
+      '%$coreMother%',
+      '%$coreSelf%',
+      '%$coreSelf%',
     ];
 
     final result = await db.rawQuery(sql, queryParams);
@@ -441,18 +533,33 @@ class DBService {
 
   Future<Map<String, dynamic>> getDashboardStats() async {
     final db = await instance.database;
+
+    try {
+      await db.rawUpdate('''
+        UPDATE voters 
+        SET serialInt = CAST(
+          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+            serialNo, '০','0'), '১','1'), '২','2'), '৩','3'), '৪','4'), '৫','5'), '৬','6'), '৭','7'), '৮','8'), '৯','9'
+          ) AS INTEGER
+        )
+        WHERE serialInt = 0 OR serialInt IS NULL;
+      ''');
+    } catch (_) {}
+
     final totalVoters =
         Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM voters'),
         ) ??
         0;
+
     final totalCenters =
         Sqflite.firstIntValue(
           await db.rawQuery(
-            'SELECT COUNT(DISTINCT centerName) FROM voters WHERE centerName != ""',
+            'SELECT COUNT(DISTINCT centerName) FROM voters WHERE centerName != "" AND centerName != "অনির্ধারিত কেন্দ্র"',
           ),
         ) ??
         0;
+
     final totalAreas =
         Sqflite.firstIntValue(
           await db.rawQuery(
@@ -473,20 +580,42 @@ class DBService {
       ORDER BY area ASC
     ''');
 
-    final centerBreakdown = await db.rawQuery('''
-      SELECT centerName as center,
-             MIN(CAST(serialNo AS INTEGER)) as startSerial,
-             MAX(CAST(serialNo AS INTEGER)) as endSerial,
+    final centerBreakdownRaw = await db.rawQuery('''
+      SELECT COALESCE(NULLIF(centerName, ''), 'অনির্ধারিত কেন্দ্র') as center,
+             COALESCE(centerNo, '') as centerNo,
+             COALESCE(centerSerial, '') as centerSerial,
+             COALESCE(boothsCount, '') as boothsCount,
+             area,
+             gender,
+             MIN(serialInt) as startSerial,
+             MAX(serialInt) as endSerial,
              COUNT(*) as totalCount
       FROM voters
-      WHERE centerName != ""
-      GROUP BY centerName
-      ORDER BY centerName ASC
+      WHERE area != ""
+      GROUP BY centerName, centerNo, centerSerial, boothsCount, area, gender
+      ORDER BY CAST(centerSerial AS INTEGER) ASC, center ASC, area ASC,
+               CASE WHEN gender = 'পুরুষ' THEN 1 WHEN gender = 'মহিলা' THEN 2 ELSE 3 END
     ''');
+
+    int totalMigratedVoters = 0;
+    List<Map<String, dynamic>> centerBreakdown = [];
+
+    for (var row in centerBreakdownRaw) {
+      int start = int.tryParse(row['startSerial']?.toString() ?? '0') ?? 0;
+      int end = int.tryParse(row['endSerial']?.toString() ?? '0') ?? 0;
+      int count = int.tryParse(row['totalCount']?.toString() ?? '0') ?? 0;
+      int expected = (start > 0 && end >= start) ? (end - start + 1) : count;
+      int migrated = (expected > count) ? (expected - count) : 0;
+      totalMigratedVoters += migrated;
+
+      Map<String, dynamic> mutableRow = Map<String, dynamic>.from(row);
+      mutableRow['migratedCount'] = migrated;
+      centerBreakdown.add(mutableRow);
+    }
 
     return {
       'totalVoters': totalVoters,
-      'migratedVoters': 0,
+      'migratedVoters': totalMigratedVoters,
       'totalCenters': totalCenters,
       'totalAreas': totalAreas,
       'areaBreakdown': areaBreakdown,

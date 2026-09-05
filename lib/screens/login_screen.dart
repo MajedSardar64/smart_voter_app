@@ -17,11 +17,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // টেস্টিংয়ের সুবিধার জন্য ডিফল্ট ক্রেডেনশিয়াল রাখা হয়েছে
   final _userController = TextEditingController(text: 'saidulvai');
   final _passController = TextEditingController(text: '123');
   bool _isLoading = false;
-  Candidate? _savedCandidate; // লোকাল স্টোরেজে সংরক্ষিত প্রার্থীর তথ্য
+  Candidate? _savedCandidate;
 
   @override
   void initState() {
@@ -29,7 +28,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _loadSavedCredentialsAndCandidate();
   }
 
-  // 🔴 পূর্বে সফলভাবে লগইন করা ক্রেডেনশিয়াল ও প্রার্থীর তথ্য অফলাইন স্টোরেজ থেকে লোড করা
   void _loadSavedCredentialsAndCandidate() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final savedUser = prefs.getString('saved_login_user');
@@ -64,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final result = await AuthService.processLogin(user, pass);
 
-      // 🔴 শুধুমাত্র লগইন ১০০% সফল হলেই ইউজার আইডি ও পাসওয়ার্ড সেভ হবে
       if (result['success'] == true) {
         Candidate candidate = result['candidate'];
         SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -76,7 +73,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        // 🔴 ওয়েব ভার্সন হলে সরাসরি HomeShell-এ প্রবেশ করবে (অপ্রয়োজনীয় ডাউনলোড পেজ বাদ)
         if (kIsWeb || hasDownloaded) {
           Navigator.pushReplacement(
             context,
@@ -133,7 +129,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // প্রার্থীর ছবি লোডার (ওয়েব ও মোবাইল উভয় ডিভাইসেই নিরাপদ)
   Widget _buildCandidateImage(String? path, {double size = 72}) {
     if (path != null && path.trim().isNotEmpty) {
       if (kIsWeb || path.startsWith('http')) {
@@ -161,7 +156,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return Icon(Icons.person, size: size * 0.6, color: Colors.white);
   }
 
-  // প্রার্থীর মার্কার লোডার (ওয়েব ও মোবাইল উভয় ডিভাইসেই নিরাপদ)
   Widget _buildSymbolImage(String? path, {double size = 48}) {
     if (path != null && path.trim().isNotEmpty) {
       if (kIsWeb || path.startsWith('http')) {
@@ -189,7 +183,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return Icon(Icons.how_to_vote, size: size * 0.6, color: Colors.black87);
   }
 
-  // 🔴 প্রার্থীর সংরক্ষিত তথ্য দিয়ে স্বয়ংক্রিয়ভাবে তৈরি কাস্টম নির্বাচনী ব্যানার
   Widget _buildCustomCandidateBanner(Candidate cand, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
@@ -373,11 +366,9 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // লোকাল স্টোরেজে ডেটা থাকলে স্বয়ংক্রিয়ভাবে কাস্টম ব্যানারটি দেখাবে
                   if (_savedCandidate != null)
                     _buildCustomCandidateBanner(_savedCandidate!, isDark),
 
-                  // মূল লগইন কার্ড
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -387,9 +378,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.4 : 0.25,
-                          ),
+                          color: Colors.black.withOpacity(isDark ? 0.4 : 0.25),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -407,7 +396,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: Colors.white.withOpacity(0.08),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -436,7 +425,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // ইউজার আইডি ফিল্ড
                         TextField(
                           controller: _userController,
                           style: const TextStyle(color: Colors.white),
@@ -454,7 +442,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.2),
+                                color: Colors.white.withOpacity(0.2),
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -468,7 +456,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 14),
 
-                        // পাসওয়ার্ড ফিল্ড
                         TextField(
                           controller: _passController,
                           obscureText: true,
@@ -487,7 +474,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.2),
+                                color: Colors.white.withOpacity(0.2),
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -501,7 +488,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 22),
 
-                        // লগইন বাটন
                         SizedBox(
                           width: double.infinity,
                           height: 48,

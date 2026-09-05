@@ -62,7 +62,6 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     }
   }
 
-  // 🔴 স্মার্ট প্রিন্ট লজিক: সেটিংস অনুযায়ী থার্মাল বা সাধারণ PDF প্রিন্ট
   void _handleSmartPrint() async {
     final prefs = await SharedPreferences.getInstance();
     final bool isThermal = prefs.getBool('is_thermal_printer_enabled') ?? true;
@@ -74,7 +73,6 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
       final base64String = base64Encode(bytes);
       final rawBtUrl = Uri.parse("rawbt:data:image/png;base64,$base64String");
 
-      // যদি RawBT বা থার্মাল প্রিন্টার থাকে তবে সরাসরি যাবে, অন্যথায় সাধারণ PDF প্রিভিউ ওপেন হবে
       if (await canLaunchUrl(rawBtUrl)) {
         await launchUrl(rawBtUrl);
       } else {
@@ -85,7 +83,6 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     }
   }
 
-  // সিস্টেম / PDF প্রিন্ট
   void _printNormalPdf() async {
     final bytes = await _captureThermalSlipBytes();
     if (bytes == null) return;
@@ -112,10 +109,18 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   }
 
   void _sendSms() async {
+    final showCenter =
+        _candidate?.showPollingCenter != false &&
+        widget.voter.centerName.isNotEmpty &&
+        widget.voter.centerName != 'অনির্ধারিত কেন্দ্র';
+    final centerDesc = showCenter
+        ? '\nকেন্দ্র: ${widget.voter.fullCenterInfo}'
+        : '';
+
     final msg = Uri.encodeComponent(
       '${_candidate?.electionTitle ?? "নির্বাচন"}: প্রার্থী: ${_candidate?.name ?? ""} (${_candidate?.symbolName ?? ""} মার্কা)\n'
       'তারিখ: ${_candidate?.electionDate ?? ""}\n'
-      'ভোটার: ${widget.voter.name}\nক্রমিক: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}\nকেন্দ্র: ${widget.voter.centerName}',
+      'ভোটার: ${widget.voter.name}\nক্রমিক: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}$centerDesc',
     );
     final url = Uri.parse('sms:?body=$msg');
     if (await canLaunchUrl(url)) await launchUrl(url);
@@ -128,12 +133,18 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   void _copyAllVoterInfo() {
     String banglaDob = BanglaHelper.formatDobToBangla(widget.voter.dob);
     String banglaGender = BanglaHelper.formatGender(widget.voter.gender);
+    final showCenter =
+        _candidate?.showPollingCenter != false &&
+        widget.voter.centerName.isNotEmpty &&
+        widget.voter.centerName != 'অনির্ধারিত কেন্দ্র';
+    final centerLine = showCenter
+        ? 'ভোট কেন্দ্র: ${widget.voter.fullCenterInfo}\n'
+        : '';
 
     String textToCopy =
         '''
 নির্বাচনের তারিখ: ${_candidate?.electionDate ?? ""}
-ভোট কেন্দ্র: ${widget.voter.centerName}
-সিরিয়াল নাম্বার: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}
+${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}
 নাম: ${widget.voter.name}
 ভোটার নং- ${BanglaHelper.toBanglaDigits(widget.voter.voterNo)}, লিঙ্গ: $banglaGender
 জন্ম তারিখ: $banglaDob,   পেশা: ${widget.voter.occupation}
@@ -148,7 +159,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     Clipboard.setData(ClipboardData(text: textToCopy));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('ভোটারের সম্পূর্ণ তথ্য সফলভাবে কপি করা হয়েছে!'),
+        content: Text('ভোটারের তথ্য কপি করা হয়েছে!'),
         backgroundColor: Color(0xFF00695C),
         duration: Duration(seconds: 2),
       ),
@@ -206,7 +217,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          'পিতা/স্বামী: ${family[i].fatherOrHusband} | মাতা: ${family[i].mother}',
+                          'পিতা/স্বামী: ${family[i].fatherOrHusband}',
                           style: const TextStyle(fontSize: 13),
                         ),
                         onTap: () {
@@ -312,7 +323,6 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     );
   }
 
-  // 🔴 এক লাইনের ৫টি বাটনের জন্য কমপ্যাক্ট টাইল
   Widget _actionTile({
     required String label,
     required IconData icon,
@@ -371,6 +381,12 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     String banglaSerial = BanglaHelper.toBanglaDigits(widget.voter.serialNo);
     String banglaVoterNo = BanglaHelper.toBanglaDigits(widget.voter.voterNo);
 
+    // 🔴 প্রার্থীর অনুমতি অনুযায়ী ভোট কেন্দ্র দেখানো বা লুকানো
+    final bool canShowCenter =
+        _candidate?.showPollingCenter != false &&
+        widget.voter.centerName.isNotEmpty &&
+        widget.voter.centerName != 'অনির্ধারিত কেন্দ্র';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -383,7 +399,6 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
           SingleChildScrollView(
             child: Column(
               children: [
-                // 🔴 এক সারিতে সাজানো ৫টি আধুনিক অ্যাকশন বাটন
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 6, 4, 3),
                   child: Row(
@@ -439,7 +454,6 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
                 ),
                 const SizedBox(height: 2),
 
-                // মোবাইল ডিসপ্লে কার্ড (রঙিন স্লিপ)
                 RepaintBoundary(
                   key: _screenCardKey,
                   child: Container(
@@ -601,29 +615,30 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
                             ),
                           ),
 
-                        // 🔴 ভোট কেন্দ্রের নাম (২ লাইনে সুন্দরভাবে দেখা যাবে)
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.fromLTRB(6, 4, 6, 0),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          color: const Color(0xFF004D40),
-                          child: Text(
-                            'ভোট কেন্দ্র: ${widget.voter.centerName}',
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'Bangla',
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14.5,
-                              height: 1.25,
+                        // 🔴 ভোট কেন্দ্র সক্রিয় থাকলে তবেই দেখানো হবে
+                        if (canShowCenter)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.fromLTRB(6, 4, 6, 0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                            color: const Color(0xFF004D40),
+                            child: Text(
+                              'ভোট কেন্দ্র: ${widget.voter.fullCenterInfo}',
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: 'Bangla',
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                height: 1.25,
+                              ),
                             ),
                           ),
-                        ),
 
                         Container(
                           width: double.infinity,
@@ -681,7 +696,6 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
             ),
           ),
 
-          // প্রিন্ট স্লিপ
           Transform.translate(
             offset: const Offset(-10000, -10000),
             child: RepaintBoundary(

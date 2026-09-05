@@ -139,6 +139,15 @@ class VoterPrintSlip extends StatelessWidget {
     String banglaSerial = BanglaHelper.toBanglaDigits(voter.serialNo);
     String banglaVoterNo = BanglaHelper.toBanglaDigits(voter.voterNo);
 
+    final bool canShowCenter =
+        candidate?.showPollingCenter != false &&
+        voter.centerName.isNotEmpty &&
+        voter.centerName != 'অনির্ধারিত কেন্দ্র';
+
+    final boothsStr = voter.boothsCount.isNotEmpty
+        ? " [বুথ: ${BanglaHelper.toBanglaDigits(voter.boothsCount)}]"
+        : "";
+
     Widget slipContent = Container(
       width: 500,
       color: Colors.white,
@@ -150,7 +159,6 @@ class VoterPrintSlip extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ১. বাম পাশের প্রার্থীর বক্স
               Container(
                 width: 220,
                 height: 220,
@@ -248,7 +256,6 @@ class VoterPrintSlip extends StatelessWidget {
               ),
               const SizedBox(width: 6),
 
-              // ২. ডান পাশের ভোটারের বক্স
               Container(
                 width: 265,
                 height: 220,
@@ -278,22 +285,33 @@ class VoterPrintSlip extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (canShowCenter)
+                            Text(
+                              'কেন্দ্রঃ ${voter.centerName}$boothsStr',
+                              style: const TextStyle(
+                                fontFamily: 'Bangla',
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                                height: 1.15,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           Text(
-                            'কেন্দ্রঃ ${voter.centerName}   এলাকাঃ ${voter.area}',
+                            'এলাকাঃ ${voter.area}',
                             style: const TextStyle(
                               fontFamily: 'Bangla',
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                              height: 1.15,
+                              fontSize: 11.5,
+                              color: Colors.black87,
                             ),
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const Divider(
                             color: Colors.black,
                             thickness: 1,
-                            height: 5,
+                            height: 4,
                           ),
                           _printLine(
                             '$banglaSerial. নামঃ ',
@@ -314,7 +332,6 @@ class VoterPrintSlip extends StatelessWidget {
             ],
           ),
 
-          // 🔴 ৩. ফুটার: একদম নিচে বাম থেকে ডানে পূর্ণাঙ্গ হরিজন্টাল লাইন
           Container(
             width: 500,
             padding: const EdgeInsets.only(top: 6, left: 2, right: 2),

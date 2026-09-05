@@ -4,6 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/candidate.dart';
 import '../models/voter.dart';
 import 'api_service.dart';
 import 'db_service.dart';
@@ -72,20 +73,20 @@ class VoterDownloadManager {
     }
   }
 
-  // 🔴 নির্দিষ্ট একটি এলাকা ক্লিন করে ফ্রেশ রি-ডাউনলোড/আপডেট করা
+  // 🔴 নির্দিষ্ট একটি এলাকা ক্লিন করে ফ্রেশ রি-ডাউনলোড
   Future<bool> reSyncSingleArea(String areaName) async {
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity.contains(ConnectivityResult.none)) return false;
 
     try {
+      final cand = await AuthService.getActiveCandidate();
       final List<Voter> voters = await VoterApiService.fetchVotersForSingleArea(
         areaName,
+        userId: cand?.userId,
       );
 
-      // ১. আগের ডাটা মুছে ফেলা
       await DBService.instance.deleteAreaVoters(areaName);
 
-      // ২. নতুন ডাটা ইনসার্ট করা
       if (voters.isNotEmpty) {
         await DBService.instance.saveVotersFromApi(voters);
       }
@@ -98,7 +99,7 @@ class VoterDownloadManager {
     }
   }
 
-  // ইন্টারনেট যাচাই সহ ব্যাকগ্রাউন্ড ডাউনলোড ও আপডেট
+  // 🔴 ব্যাকগ্রাউন্ড ডাউনলোড ও আপডেট (userId সহ)
   Future<void> startIncrementalDownload(
     List<String> areasToDownload, {
     bool isUpdateMode = false,
@@ -126,7 +127,6 @@ class VoterDownloadManager {
 
     _isProcessing = true;
 
-    // যদি আপডেট মোড না হয়, তবে শুধু বাকি এলাকাগুলো নেবে। আর আপডেট মোড হলে সবগুলোই রি-সিঙ্ক করবে
     final pendingAreas = isUpdateMode
         ? areasToDownload
         : areasToDownload.where((a) => !savedAreas.contains(a)).toList();
@@ -154,6 +154,7 @@ class VoterDownloadManager {
     );
 
     int failedCount = 0;
+    final cand = await AuthService.getActiveCandidate();
 
     for (int i = 0; i < pendingAreas.length; i++) {
       final areaName = pendingAreas[i];
@@ -173,9 +174,11 @@ class VoterDownloadManager {
       while (!areaSuccess && retries < 3) {
         try {
           final List<Voter> voters =
-              await VoterApiService.fetchVotersForSingleArea(areaName);
+              await VoterApiService.fetchVotersForSingleArea(
+                areaName,
+                userId: cand?.userId,
+              );
 
-          // 🔴 আপডেটের সময় ডুপ্লিকেট রোধে আগের ডাটা মুছে ফ্রেশ সেভ করা
           await DBService.instance.deleteAreaVoters(areaName);
 
           if (voters.isNotEmpty) {

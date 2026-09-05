@@ -6,12 +6,161 @@ keyAlias=upload
 storeFile=upload-keystore.jks
 
 
+
+
+
+
+
+
+
+
+
+
+আমি একটি অ্যান্ড্রয়েড এপ্লিকেশন তৈরি করেছি এ আই স্টুডিওর মাধ্যমে এখানে কিছু আপডেট করতে হবে কিছু ভুল আছে সংশোধন করতে হবে কোন প্রকার লজিক পরিবর্তন না করে আমাকে আপডেট করে দিবেন আমি আপনাকে সম্পূর্ণ ফ্রাই এবং কোথায় কি ফাইল রয়েছে সেগুলো সবই দিচ্ছি
+
+E:\android-app\smart_voter_app\lib\main.dart
+E:\android-app\smart_voter_app\lib\models\voter.dart
+E:\android-app\smart_voter_app\lib\screens\about_screen.dart
+E:\android-app\smart_voter_app\lib\screens\dashboard_screen.dart
+E:\android-app\smart_voter_app\lib\screens\home_shell.dart
+E:\android-app\smart_voter_app\lib\screens\login_screen.dart
+E:\android-app\smart_voter_app\lib\screens\nid_live_scanner_screen.dart
+E:\android-app\smart_voter_app\lib\screens\overview_screen.dart
+E:\android-app\smart_voter_app\lib\screens\search_results_screen.dart
+E:\android-app\smart_voter_app\lib\screens\search_view.dart
+E:\android-app\smart_voter_app\lib\screens\settings_screen.dart
+E:\android-app\smart_voter_app\lib\screens\voter_detail_screen.dart
+E:\android-app\smart_voter_app\lib\screens\ward_download_screen.dart
+E:\android-app\smart_voter_app\lib\services\api_service.dart
+E:\android-app\smart_voter_app\lib\services\bengali_ocr_service.dart
+E:\android-app\smart_voter_app\lib\services\db_service.dart
+E:\android-app\smart_voter_app\lib\services\offline_image_service.dart
+E:\android-app\smart_voter_app\lib\services\secure_http_client.dart
+E:\android-app\smart_voter_app\lib\services\theme_service.dart
+E:\android-app\smart_voter_app\lib\services\voter_download_manager.dart
+E:\android-app\smart_voter_app\lib\utils\bangla_helper.dart
+E:\android-app\smart_voter_app\lib\utils\security_helper.dart
+E:\android-app\smart_voter_app\lib\utils\slip_share_helper.dart
+E:\android-app\smart_voter_app\lib\widgets\voter_print_slip.dart
+E:\android-app\smart_voter_app\pubspec.yaml
+
+api.php
+candidates.php
+candidate_form.php
+
+আমি আপনাকে সবগুলা ফাইলে লোকেশন এবং সবগুলো ফাইল প্রোভাইড করেছি সেগুলোকে ভালো করে দেখে আমাকে আপডেট করে দেন কোন প্রকার লজিক পরিবর্তন না করে এবং যেগুলো সংশোধন করবেন সেগুলার সম্পূর্ণ ফাইল দিবেন কোড দিবেন এটা মনে রাখবেন সব সময় মেমোরিতে সেভ করে রাখেন
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+xcopy "E:\android-app\smart_voter_app\lib" "D:\backup\smart_voter_app\lib  " /E /I /H /Y
+
+উদাহরণ
+
+E:\android-app\smart_voter_app\lib\main.dart
+E:\android-app\smart_voter_app\lib\config\app_config.dart
+E:\android-app\smart_voter_app\lib\models\candidate.dart
+E:\android-app\smart_voter_app\lib\models\voter.dart
+E:\android-app\smart_voter_app\lib\screens\about_screen.dart
+E:\android-app\smart_voter_app\lib\screens\dashboard_screen.dart
+E:\android-app\smart_voter_app\lib\screens\home_shell.dart
+E:\android-app\smart_voter_app\lib\screens\login_screen.dart
+E:\android-app\smart_voter_app\lib\screens\nid_live_scanner_screen.dart
+E:\android-app\smart_voter_app\lib\screens\overview_screen.dart
+E:\android-app\smart_voter_app\lib\screens\search_results_screen.dart
+E:\android-app\smart_voter_app\lib\screens\search_view.dart
+E:\android-app\smart_voter_app\lib\screens\settings_screen.dart
+E:\android-app\smart_voter_app\lib\screens\voter_detail_screen.dart
+E:\android-app\smart_voter_app\lib\screens\ward_download_screen.dart
+E:\android-app\smart_voter_app\lib\services\api_service.dart
+E:\android-app\smart_voter_app\lib\services\bengali_ocr_service.dart
+E:\android-app\smart_voter_app\lib\services\db_service.dart
+E:\android-app\smart_voter_app\lib\services\offline_image_service.dart
+E:\android-app\smart_voter_app\lib\services\secure_http_client.dart
+E:\android-app\smart_voter_app\lib\services\theme_service.dart
+E:\android-app\smart_voter_app\lib\services\voter_download_manager.dart
+E:\android-app\smart_voter_app\lib\utils\bangla_helper.dart
+E:\android-app\smart_voter_app\lib\utils\security_helper.dart
+E:\android-app\smart_voter_app\lib\utils\slip_share_helper.dart
+E:\android-app\smart_voter_app\lib\widgets\voter_print_slip.dart
+26 File(s) copied
+
+
+$src="E:\android-app\smart_voter_app\lib"; $dst="D:\backup\smart_voter_app\lib_txt"; Get-ChildItem $src -Recurse -File | ForEach-Object { $rel=$_.FullName.Substring($src.Length).TrimStart('\'); $out=Join-Path $dst ($rel + ".txt"); New-Item -ItemType Directory -Path (Split-Path $out) -Force | Out-Null; Copy-Item $_.FullName $out -Force }
+
+উদাহরণ
+
+আপনার lib যদি এমন হয়:
+
+lib
+├── main.dart
+├── app.dart
+├── models
+│   └── user.dart
+└── screens
+    └── home.dart
+
+তাহলে নতুন:
+
+D:\backup\smart_voter_app\lib_txt
+├── main.dart.txt
+├── app.dart.txt
+├── models
+│   └── user.dart.txt
+└── screens
+    └── home.dart.txt
+
+
+$src="D:\backup\smart_voter_app\lib_txt"; $dst="D:\backup\smart_voter_app\all_files"; New-Item -ItemType Directory -Path $dst -Force | Out-Null; Get-ChildItem $src -Recurse -File | ForEach-Object { Copy-Item $_.FullName -Destination $dst -Force }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 আমাকে একটি সিক্রেট কোড দেন যেটা দিয়ে আমার বর্তমান যে কোডগুলো রয়েছে সেগুলো দিয়ে যেন কাজ শুরু করতে পারি কারণ অনেক সময় অনেক কিছু ভুল হয়ে যায় আগের ফাইলগুলোতে রিকভারি করা যায় না তাই আমাকে এমন একটি কোড দেন যাতে আপনাকে দিলে আপনি বুঝতে পারেন এখন যে ফাইলগুলো রয়েছে এই ফাইলগুলো নিয়ে কাজ করতে হবে আমার সিক্রেট কোড আপনার কাছে থাকা বর্তমান সবগুলা ফাইল জন্য বা সব কোডের জন্য একটি সিক্রেট করতে যেন আপনি বুঝতে পারেন এই ফাইলগুলো এখানে রাখা আছে এই কোড দিলে এই ফাইল নিয়ে কাজ শুরু করবে বর্তমান রানিং ফাইল গুলা পরবর্তী কোর্টে যদি কোন ভুল করি এটা দিলে এখান থেকে শুরু করবেন আবার
 
 
 "আমি কোডে ভুল করেছি, আমার সিক্রেট কোড SMART-VOTER-MASTER-2026-V10 অনুযায়ী আগের কোডে রিকভারি করে দাও।"
-
-
 
 
 

@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
+import '../services/db_service.dart';
 import '../services/offline_image_service.dart';
 
 class WardAllocation {
@@ -74,7 +75,8 @@ class Candidate {
   final String divisionName;
   final String districtName;
   final String upazilaName;
-  final int totalVoters; // 🔴 আসল মোট ভোটার সংখ্যা
+  final int totalVoters;
+  final bool showPollingCenter; // 🔴 নতুন ফ্ল্যাগ
   final String? candidateImage;
   final String? symbolImage;
   final String? bannerImage;
@@ -96,6 +98,7 @@ class Candidate {
     this.districtName = '',
     this.upazilaName = '',
     this.totalVoters = 0,
+    this.showPollingCenter = true,
     this.candidateImage,
     this.symbolImage,
     this.bannerImage,
@@ -117,6 +120,7 @@ class Candidate {
     'districtName': districtName,
     'upazilaName': upazilaName,
     'total_voters': totalVoters,
+    'show_polling_center': showPollingCenter ? 1 : 0,
     'candidateImage': candidateImage,
     'symbolImage': symbolImage,
     'bannerImage': bannerImage,
@@ -141,6 +145,7 @@ class Candidate {
         districtName: '',
         upazilaName: '',
         totalVoters: 0,
+        showPollingCenter: true,
         expiryDate: DateTime.now(),
         assignedWards: [],
       );
@@ -165,6 +170,12 @@ class Candidate {
       districtName: map['districtName']?.toString() ?? '',
       upazilaName: map['upazilaName']?.toString() ?? '',
       totalVoters: int.tryParse(map['total_voters']?.toString() ?? '0') ?? 0,
+      showPollingCenter: map['show_polling_center'] == null
+          ? true
+          : (map['show_polling_center'] == 1 ||
+                map['show_polling_center'] == true ||
+                map['show_polling_center'].toString() == '1' ||
+                map['show_polling_center'].toString() == 'true'),
       candidateImage: map['candidateImage']?.toString(),
       symbolImage: map['symbolImage']?.toString(),
       bannerImage: map['bannerImage']?.toString(),
@@ -288,6 +299,7 @@ class AuthService {
         districtName: candidate.districtName,
         upazilaName: candidate.upazilaName,
         totalVoters: candidate.totalVoters,
+        showPollingCenter: candidate.showPollingCenter,
         candidateImage: localCandImg,
         symbolImage: localSymImg,
         bannerImage: localBanImg,
@@ -335,7 +347,6 @@ class AuthService {
           'ban_img',
         );
 
-        // 🔴 ternary লুপ ফিক্স: সার্ভার থেকে খালি আসলে অ্যাপেও খালি হয়ে যাবে
         final updatedOfflineCandidate = Candidate(
           userId: candidate.userId,
           password: '',
@@ -351,13 +362,18 @@ class AuthService {
           districtName: candidate.districtName,
           upazilaName: candidate.upazilaName,
           totalVoters: candidate.totalVoters,
+          showPollingCenter: candidate.showPollingCenter,
           candidateImage: localCandImg,
           symbolImage: localSymImg,
           bannerImage: localBanImg,
           expiryDate: candidate.expiryDate,
-          assignedWards:
-              candidate.assignedWards, // 🔴 সার্ভারের আসল লিস্ট সরাসরি বসবে
+          assignedWards: candidate.assignedWards,
         );
+
+        // 🔴 যদি প্যানেল থেকে ভোট কেন্দ্র বন্ধ করা হয়ে থাকে, তবে অফলাইন SQLite ডেটাবেজ থেকেও তাৎক্ষণিক মুছে ফেলা হবে
+        if (!kIsWeb && !updatedOfflineCandidate.showPollingCenter) {
+          await DBService.instance.clearAllPollingCenters();
+        }
 
         final candidateMap = updatedOfflineCandidate.toMap();
         await prefs.setString(
@@ -373,8 +389,9 @@ class AuthService {
   }
 
   static Future<Candidate?> getActiveCandidate() async {
-    if (activeCandidateNotifier.value != null)
+    if (activeCandidateNotifier.value != null) {
       return activeCandidateNotifier.value;
+    }
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       String? data = prefs.getString('active_candidate');
