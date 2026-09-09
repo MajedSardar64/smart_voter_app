@@ -51,6 +51,24 @@ class VoterDownloadManager {
   );
 
   bool _isProcessing = false;
+  bool _isCancelled = false;
+
+  // 🔴 ডাউনলোড বাতিল করার মেথড
+  void cancelDownload() {
+    if (!_isProcessing) return;
+    _isCancelled = true;
+    _isProcessing = false;
+
+    progressNotifier.value = DownloadProgressState(
+      status: DownloadStatus.idle,
+      completedAreasCount: progressNotifier.value.completedAreasCount,
+      totalAreasCount: progressNotifier.value.totalAreasCount,
+      totalVotersSaved: progressNotifier.value.totalVotersSaved,
+      currentProcessingArea: '',
+      savedAreaNames: progressNotifier.value.savedAreaNames,
+      errorMessage: 'ডাউনলোড বাতিল করা হয়েছে।',
+    );
+  }
 
   Future<void> syncWithDatabase() async {
     try {
@@ -73,7 +91,6 @@ class VoterDownloadManager {
     }
   }
 
-  // 🔴 নির্দিষ্ট একটি এলাকা ক্লিন করে ফ্রেশ রি-ডাউনলোড
   Future<bool> reSyncSingleArea(String areaName) async {
     final connectivity = await Connectivity().checkConnectivity();
     if (connectivity.contains(ConnectivityResult.none)) return false;
@@ -99,12 +116,14 @@ class VoterDownloadManager {
     }
   }
 
-  // 🔴 ব্যাকগ্রাউন্ড ডাউনলোড ও আপডেট (userId সহ)
+  // 🔴 ব্যাকগ্রাউন্ড রিকভারি ও ক্যানসেল সাপোর্ট সহ ডাউনলোড
   Future<void> startIncrementalDownload(
     List<String> areasToDownload, {
     bool isUpdateMode = false,
   }) async {
     if (_isProcessing || areasToDownload.isEmpty) return;
+
+    _isCancelled = false;
 
     final Set<String> savedAreas =
         (await DBService.instance.getDownloadedAreas()).toSet();
@@ -157,6 +176,8 @@ class VoterDownloadManager {
     final cand = await AuthService.getActiveCandidate();
 
     for (int i = 0; i < pendingAreas.length; i++) {
+      if (_isCancelled) break; // ইউজার বাতিল করলে তাৎক্ষণিক লুপ ব্রেক হবে
+
       final areaName = pendingAreas[i];
 
       progressNotifier.value = DownloadProgressState(
@@ -171,7 +192,7 @@ class VoterDownloadManager {
       bool areaSuccess = false;
       int retries = 0;
 
-      while (!areaSuccess && retries < 3) {
+      while (!areaSuccess && retries < 4 && !_isCancelled) {
         try {
           final List<Voter> voters =
               await VoterApiService.fetchVotersForSingleArea(
@@ -191,19 +212,25 @@ class VoterDownloadManager {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('hasDownloadedData', true);
 
-          await Future.delayed(const Duration(milliseconds: 25));
+          await Future.delayed(const Duration(milliseconds: 30));
         } catch (e) {
           retries++;
-          await Future.delayed(const Duration(milliseconds: 400));
+          // নেটওয়ার্ক স্লো হলে রিট্রাই সময় বাড়িয়ে ব্যাকগ্রাউন্ড ধরে রাখা
+          await Future.delayed(Duration(milliseconds: 500 * retries));
         }
       }
 
-      if (!areaSuccess) {
+      if (!areaSuccess && !_isCancelled) {
         failedCount++;
       }
     }
 
     _isProcessing = false;
+
+    if (_isCancelled) {
+      _isCancelled = false;
+      return;
+    }
 
     if (failedCount == pendingAreas.length && pendingAreas.isNotEmpty) {
       progressNotifier.value = DownloadProgressState(
@@ -214,7 +241,7 @@ class VoterDownloadManager {
         currentProcessingArea: '',
         savedAreaNames: savedAreas,
         errorMessage:
-            'সার্ভারের সাথে যোগাযোগ করা যায়নি! সার্ভার লিংক চেক করুন।',
+            'সার্ভারের সাথে যোগাযোগ করা যায়নি! ইন্টারনেট স্পিড চেক করুন।',
       );
     } else {
       progressNotifier.value = DownloadProgressState(

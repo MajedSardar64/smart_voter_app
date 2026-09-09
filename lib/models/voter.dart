@@ -24,6 +24,7 @@ class Voter {
   final String centerGenderLabel;
   final int pollingCenterId;
   final bool isMigrated;
+  final String publicationDate; // 🔴 নতুন যুক্ত হওয়া ফিল্ড
 
   Voter({
     required this.id,
@@ -49,6 +50,7 @@ class Voter {
     this.centerGenderLabel = '',
     this.pollingCenterId = 0,
     this.isMigrated = false,
+    this.publicationDate = '',
   });
 
   String get displayWard {
@@ -58,7 +60,6 @@ class Voter {
     return ward.isNotEmpty ? ward : unionOrWardName;
   }
 
-  // কেন্দ্রের নামের সাথে বিকৃত করে কেন্দ্র নং জোড়া দেওয়া বন্ধ করা হয়েছে
   String get fullCenterInfo {
     List<String> parts = [];
     if (centerName.isNotEmpty) parts.add(centerName);
@@ -93,6 +94,7 @@ class Voter {
       'centerGenderLabel': centerGenderLabel,
       'pollingCenterId': pollingCenterId,
       'isMigrated': isMigrated ? 1 : 0,
+      'publication_date': publicationDate, // 🔴 সেভ
     };
   }
 
@@ -152,6 +154,10 @@ class Voter {
                 ) ??
                 0),
       isMigrated: map['isMigrated'] == 1 || map['isMigrated'] == true,
+      publicationDate:
+          map['publication_date']?.toString() ??
+          map['publicationDate']?.toString() ??
+          '', // 🔴 লোড
     );
   }
 }

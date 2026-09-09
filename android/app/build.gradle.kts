@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.majed.smart_voter_slip_app"
+    namespace = "com.sardar.smart_voter_slip_app"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -30,7 +30,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId = "com.majed.smart_voter_slip_app"
+        applicationId = "com.sardar.smart_voter_slip_app"
         minSdk = flutter.minSdkVersion // ক্যামেরা ও স্মার্ট স্ক্যানারের জন্য ন্যূনতম নিরাপদ মান
         targetSdk = 36
         versionCode = flutter.versionCode

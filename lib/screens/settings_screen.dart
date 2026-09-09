@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/candidate.dart';
 import '../services/db_service.dart';
 import '../services/theme_service.dart';
+import '../widgets/slips/slip_template.dart';
 import 'login_screen.dart';
 import 'ward_download_screen.dart';
 
@@ -18,6 +19,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _isRefreshing = false;
   bool _isThermalEnabled = true;
+  String _selectedSlipFormat = 'format_1';
 
   @override
   void initState() {
@@ -29,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isThermalEnabled = prefs.getBool('is_thermal_printer_enabled') ?? true;
+      _selectedSlipFormat = prefs.getString('voter_slip_format') ?? 'format_1';
     });
   }
 
@@ -36,6 +39,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_thermal_printer_enabled', val);
     setState(() => _isThermalEnabled = val);
+  }
+
+  // 🔴 ডায়নামিক ফরম্যাট চয়েস ডায়ালগ
+  void _showSlipFormatDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Row(
+          children: [
+            Icon(Icons.style, color: Color(0xFF004D40)),
+            SizedBox(width: 8),
+            Text(
+              'ভোটার স্লিপ ফরম্যাট নির্বাচন',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: SlipRegistry.templates.map((template) {
+              return Column(
+                children: [
+                  RadioListTile<String>(
+                    value: template.id,
+                    groupValue: _selectedSlipFormat,
+                    title: Text(
+                      template.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    subtitle: Text(
+                      template.description,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    activeColor: const Color(0xFF004D40),
+                    onChanged: (val) async {
+                      if (val == null) return;
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setString('voter_slip_format', val);
+                      setState(() => _selectedSlipFormat = val);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                  const Divider(height: 1),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
   }
 
   void _clearAllAppCache() async {
@@ -178,8 +236,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ডায়নামিকভাবে বর্তমান নির্বাচিত ফরম্যাটের নাম পড়া
+    final currentTemplate = SlipRegistry.getTemplate(_selectedSlipFormat);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -202,7 +263,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => _showThemeDialog(context),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+
+          // ডায়নামিক ভোটার স্লিপ ফরম্যাট সিলেক্টর কার্ড
+          Card(
+            elevation: 1,
+            child: ListTile(
+              leading: const Icon(
+                Icons.style_outlined,
+                color: Color(0xFF004D40),
+              ),
+              title: const Text(
+                'ভোটার স্লিপ ফরম্যাট নির্বাচন',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              subtitle: Text(
+                'বর্তমান ফরম্যাট: ${currentTemplate.name}',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: Color(0xFF0284C7),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 15),
+              onTap: _showSlipFormatDialog,
+            ),
+          ),
+          const SizedBox(height: 10),
 
           Card(
             elevation: 1.5,
@@ -259,9 +346,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // 🔴 মোবাইল অফলাইন ডেটাবেজ ও ভোটকেন্দ্র সিঙ্ক
           if (!kIsWeb) ...[
             _buildButton(
               'ভোটার ডেটাবেজ ও কেন্দ্র অফলাইন সিঙ্ক (Sync Wards)',
@@ -276,10 +362,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               },
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
           ],
 
-          // 🔴 প্রার্থীর প্রোফাইল ও এলাকা রিফ্রেশ
           _buildButton(
             _isRefreshing
                 ? 'সার্ভার থেকে সিঙ্ক হচ্ছে...'
@@ -296,7 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       SnackBar(
                         content: Text(
                           ok
-                              ? 'প্রার্থীর তথ্য ও নতুন এলাকা সফলভাবে অফলাইনে আপডেট হয়েছে!'
+                              ? 'প্রার্থীর তথ্য সফলভাবে আপডেট হয়েছে!'
                               : 'সার্ভারে কানেক্ট করা যায়নি!',
                         ),
                         backgroundColor: ok
@@ -306,9 +391,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // ক্যাশ ও ডেটা ক্লিয়ার
           _buildButton(
             'ক্যাশ ও ডেটা ক্লিয়ার করুন (Clear Cache & Reset)',
             Colors.red.shade700,
@@ -322,19 +406,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildButton(String text, Color color, VoidCallback onTap) {
     return SizedBox(
       width: double.infinity,
-      height: 46,
+      height: 44,
       child: ElevatedButton(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         ),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13.5,
-            fontWeight: FontWeight.bold,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ),

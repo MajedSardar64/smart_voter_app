@@ -33,6 +33,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   Candidate? _candidate;
   final GlobalKey _thermalPrintKey = GlobalKey();
   final GlobalKey _screenCardKey = GlobalKey();
+  String _slipFormat = 'format_1';
 
   final String softwareFooterInfo = 'সরদার আইটি, ঢাকা। মোবাইল: ০১৬১৯০৯৭৫৭১';
   final String thermalFooterInfo = 'সরদার আইটি, ঢাকা, ০১৬১৯০৯৭৫৭১';
@@ -40,13 +41,18 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCandidate();
+    _loadCandidateAndSettings();
   }
 
-  void _loadCandidate() async {
+  void _loadCandidateAndSettings() async {
     final cand = await AuthService.getActiveCandidate();
+    final prefs = await SharedPreferences.getInstance();
+    final format = prefs.getString('voter_slip_format') ?? 'format_1';
     if (!mounted) return;
-    setState(() => _candidate = cand);
+    setState(() {
+      _candidate = cand;
+      _slipFormat = format;
+    });
   }
 
   Future<Uint8List?> _captureThermalSlipBytes() async {
@@ -140,6 +146,9 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     final centerLine = showCenter
         ? 'ভোট কেন্দ্র: ${widget.voter.fullCenterInfo}\n'
         : '';
+    final pubDateLine = widget.voter.publicationDate.isNotEmpty
+        ? 'তালিকা প্রকাশ: ${BanglaHelper.toBanglaDigits(widget.voter.publicationDate)}\n'
+        : '';
 
     String textToCopy =
         '''
@@ -152,8 +161,8 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
 মাতা: ${widget.voter.mother}
 ঠিকানা: ${widget.voter.address}
 এলাকা: ${widget.voter.area}
-ওয়ার্ড: ${BanglaHelper.toBanglaDigits(widget.voter.displayWard)}
-'''
+ওয়ার্ড নং: ${BanglaHelper.toBanglaDigits(widget.voter.displayWard)}
+$pubDateLine'''
             .trim();
 
     Clipboard.setData(ClipboardData(text: textToCopy));
@@ -166,6 +175,7 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
     );
   }
 
+  // 🔴 ফ্যামিলি সার্চ (মাতার নাম লাইট/ডার্ক উভয় মোডের থিমের সাথে সামঞ্জস্যপূর্ণ)
   void _openFamilySearch() async {
     List<Voter> family = [];
 
@@ -180,57 +190,115 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
 
     if (!mounted) return;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (ctx) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
+        height: MediaQuery.of(context).size.height * 0.65,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'একই পরিবারের অন্যান্য ভোটার',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16.5,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
             ),
             const Divider(),
             family.isEmpty
-                ? const Center(
+                ? Center(
                     child: Padding(
-                      padding: EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(20),
                       child: Text(
                         'কোন সদস্য পাওয়া যায়নি',
-                        style: TextStyle(fontSize: 14),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
                       ),
                     ),
                   )
                 : Expanded(
                     child: ListView.builder(
                       itemCount: family.length,
-                      itemBuilder: (ctx, i) => ListTile(
-                        title: Text(
-                          family[i].name,
-                          style: const TextStyle(
-                            color: Color(0xFF2563EB),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
+                      itemBuilder: (ctx, i) {
+                        final member = family[i];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
                           ),
-                        ),
-                        subtitle: Text(
-                          'পিতা/স্বামী: ${family[i].fatherOrHusband}',
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  VoterDetailScreen(voter: family[i]),
+                          title: Text(
+                            member.name,
+                            style: const TextStyle(
+                              color: Color(0xFF2563EB),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                          // 🔴 ডার্ক মোডের ব্যাকগ্রাউন্ড অনুযায়ী পিতা ও মাতার রঙের নিখুঁত সামঞ্জস্য
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'পিতা/স্বামী: ${member.fatherOrHusband}',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: isDark
+                                      ? const Color(0xFFCBD5E1)
+                                      : const Color(0xFF334155),
+                                ),
+                              ),
+                              if (member.mother.isNotEmpty)
+                                Text(
+                                  'মাতা: ${member.mother}',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: isDark
+                                        ? const Color(0xFFCBD5E1)
+                                        : const Color(
+                                            0xFF334155,
+                                          ), // 🔴 ফিক্সড কালার
+                                  ),
+                                ),
+                              if (_candidate?.showPollingCenter != false &&
+                                  member.centerName.isNotEmpty)
+                                Text(
+                                  'কেন্দ্র: ${member.centerName}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF0D9488),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          trailing: Icon(
+                            Icons.arrow_forward_ios,
+                            size: 14,
+                            color: isDark ? Colors.white38 : Colors.grey,
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    VoterDetailScreen(voter: member),
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
           ],
@@ -354,16 +422,17 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
               children: [
                 Icon(icon, size: 16, color: Colors.white),
                 const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Bangla',
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Bangla',
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -381,7 +450,6 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
     String banglaSerial = BanglaHelper.toBanglaDigits(widget.voter.serialNo);
     String banglaVoterNo = BanglaHelper.toBanglaDigits(widget.voter.voterNo);
 
-    // 🔴 প্রার্থীর অনুমতি অনুযায়ী ভোট কেন্দ্র দেখানো বা লুকানো
     final bool canShowCenter =
         _candidate?.showPollingCenter != false &&
         widget.voter.centerName.isNotEmpty &&
@@ -443,7 +511,7 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                     vertical: 1.5,
                   ),
                   child: Text(
-                    'প্রিন্ট করার জন্য সেটিংস থেকে আপনার প্রিন্টার পেয়ার করে নিন।',
+                    'প্রিন্ট করার জন্য সেটিংস থেকে প্রিন্টার পেয়ার ও ফরম্যাট সেট করে নিন।',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 10.5,
@@ -454,6 +522,7 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                 ),
                 const SizedBox(height: 2),
 
+                // অন-স্ক্রিন প্রিভিউ
                 RepaintBoundary(
                   key: _screenCardKey,
                   child: Container(
@@ -507,8 +576,8 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Container(
-                                      width: 150,
-                                      height: 150,
+                                      width: 145,
+                                      height: 145,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         border: Border.all(
@@ -529,8 +598,8 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                                       child: ClipOval(
                                         child: _buildImage(
                                           _candidate?.candidateImage,
-                                          width: 150,
-                                          height: 150,
+                                          width: 145,
+                                          height: 145,
                                         ),
                                       ),
                                     ),
@@ -608,14 +677,13 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontFamily: 'Bangla',
-                                fontSize: 14.5,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF004D40),
                               ),
                             ),
                           ),
 
-                        // 🔴 ভোট কেন্দ্র সক্রিয় থাকলে তবেই দেখানো হবে
                         if (canShowCenter)
                           Container(
                             width: double.infinity,
@@ -634,8 +702,8 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                                 fontFamily: 'Bangla',
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                height: 1.25,
+                                fontSize: 13.5,
+                                height: 1.2,
                               ),
                             ),
                           ),
@@ -666,11 +734,18 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                               _slipRow('ঠিকানা:', widget.voter.address),
                               _slipRow('এলাকা:', widget.voter.area),
                               _slipRow(
-                                'ওয়ার্ড:',
+                                'ওয়ার্ড নং:',
                                 BanglaHelper.toBanglaDigits(
                                   widget.voter.displayWard,
                                 ),
                               ),
+                              if (widget.voter.publicationDate.isNotEmpty)
+                                _slipRow(
+                                  'তালিকা প্রকাশ:',
+                                  BanglaHelper.toBanglaDigits(
+                                    widget.voter.publicationDate,
+                                  ),
+                                ),
                               const SizedBox(height: 6),
                               Center(
                                 child: Text(
@@ -679,7 +754,7 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                                     fontFamily: 'Bangla',
                                     fontStyle: FontStyle.italic,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 13.5,
+                                    fontSize: 13,
                                     color: Colors.black87,
                                   ),
                                 ),
@@ -696,6 +771,7 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
             ),
           ),
 
+          // অফ-স্ক্রিন প্রিন্ট স্লিপ (ডায়নামিকালি সিলেক্টেড ফরম্যাটে প্রিন্ট হবে)
           Transform.translate(
             offset: const Offset(-10000, -10000),
             child: RepaintBoundary(
@@ -705,6 +781,7 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
                 voter: widget.voter,
                 footerText: thermalFooterInfo,
                 isRotated90: true,
+                slipFormat: _slipFormat,
               ),
             ),
           ),
@@ -726,7 +803,7 @@ ${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBangl
             text: TextSpan(
               style: const TextStyle(
                 fontFamily: 'Bangla',
-                fontSize: 18.5,
+                fontSize: 18,
                 color: Colors.black87,
                 height: 1.15,
               ),

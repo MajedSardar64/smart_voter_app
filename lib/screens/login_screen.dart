@@ -17,8 +17,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _userController = TextEditingController(text: 'saidulvai');
-  final _passController = TextEditingController(text: '123');
+  final _userController = TextEditingController(text: '');
+  final _passController = TextEditingController(text: '');
   bool _isLoading = false;
   Candidate? _savedCandidate;
 

@@ -20,6 +20,7 @@ class DashboardScreen extends StatelessWidget {
         'totalAreas': 0,
         'totalCenters': 0,
         'migratedVoters': 0,
+        'publicationDates': [],
         'areaBreakdown': [],
         'centerBreakdown': [],
       };
@@ -36,6 +37,7 @@ class DashboardScreen extends StatelessWidget {
       'totalAreas': totalAreas,
       'totalCenters': totalCenters,
       'migratedVoters': 0,
+      'publicationDates': [],
       'areaBreakdown': [],
       'centerBreakdown': [],
     };
@@ -77,6 +79,14 @@ class DashboardScreen extends StatelessWidget {
           migratedVotersInt.toString(),
         );
 
+        // 🔴 প্রকাশের তারিখসমূহ
+        final List pubDatesList = data['publicationDates'] ?? [];
+        final String pubDatesStr = pubDatesList.isNotEmpty
+            ? pubDatesList
+                  .map((d) => BanglaHelper.toBanglaDigits(d.toString()))
+                  .join(', ')
+            : 'তথ্য নেই';
+
         final List<Map<String, dynamic>> areaBreakdown =
             List<Map<String, dynamic>>.from(data['areaBreakdown'] ?? []);
         final List<Map<String, dynamic>> centerBreakdown =
@@ -88,7 +98,7 @@ class DashboardScreen extends StatelessWidget {
             final bool canShowCenters = candidate?.showPollingCenter != false;
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -100,7 +110,7 @@ class DashboardScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   _summaryRow('মোট ভোটার', totalVoters),
                   const Divider(),
                   _summaryRow(
@@ -116,17 +126,20 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   const Divider(),
                   _summaryRow('মাইগ্রেট ভোটার', totalMigrated),
-                  const SizedBox(height: 25),
+                  const Divider(),
+                  // 🔴 ড্যাশবোর্ডে ভোটার তালিকা প্রকাশের তারিখ প্রদর্শন
+                  _summaryRow('ভোটার তালিকা প্রকাশের তারিখ', pubDatesStr),
+                  const SizedBox(height: 20),
 
                   const Text(
                     'এলাকা ভিত্তিক ভোটার সংখ্যা',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 16.5,
                       color: Color(0xFF1976D2),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
 
                   Table(
                     border: TableBorder.all(
@@ -164,21 +177,21 @@ class DashboardScreen extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 25),
 
                   const Text(
                     'ভোটকেন্দ্র ও এলাকা ভিত্তিক ভোটার ক্রমিক (রেঞ্জ)',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 16.5,
                       color: Color(0xFFE53935),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
 
                   if (!canShowCenters)
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF1E293B) : Colors.white,
                         borderRadius: BorderRadius.circular(8),
@@ -190,7 +203,7 @@ class DashboardScreen extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.orange,
-                            fontSize: 13,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -198,7 +211,7 @@ class DashboardScreen extends StatelessWidget {
                     )
                   else if (centerBreakdown.isEmpty)
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF1E293B) : Colors.white,
                         borderRadius: BorderRadius.circular(8),
@@ -208,7 +221,7 @@ class DashboardScreen extends StatelessWidget {
                         child: Text(
                           'কোনো ভোটকেন্দ্রের তথ্য সংরক্ষিত নেই। সেটিংস থেকে এলাকা ডাউনলোড/সিঙ্ক করুন।',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                          style: TextStyle(color: Colors.grey, fontSize: 12.5),
                         ),
                       ),
                     )
@@ -282,14 +295,15 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _summaryRow(String title, String count) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3.5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 15)),
+          Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
+          const SizedBox(width: 8),
           Text(
             count,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -323,11 +337,11 @@ class DashboardScreen extends StatelessWidget {
         }
 
         return Padding(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(5),
           child: Text(
             cell,
             style: TextStyle(
-              fontSize: 11.5,
+              fontSize: 11,
               fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
               color: textColor,
             ),

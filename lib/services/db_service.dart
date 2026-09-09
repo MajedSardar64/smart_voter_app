@@ -13,7 +13,7 @@ class DBService {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('voter_data_encrypted_v4.db');
+    _database = await _initDB('voter_data_encrypted_v5.db');
     return _database!;
   }
 
@@ -24,7 +24,7 @@ class DBService {
     return await openDatabase(
       path,
       password: SecurityHelper.dbSecretKey,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE voters (
@@ -51,7 +51,8 @@ class DBService {
             boothsCount TEXT,
             centerGenderLabel TEXT,
             pollingCenterId INTEGER,
-            isMigrated INTEGER NOT NULL
+            isMigrated INTEGER NOT NULL,
+            publication_date TEXT
           )
         ''');
         await db.execute('CREATE INDEX idx_area ON voters(area)');
@@ -103,29 +104,16 @@ class DBService {
           try {
             await db.execute('CREATE INDEX idx_gender ON voters(gender);');
           } catch (_) {}
+        }
+        if (oldVersion < 5) {
           try {
-            await db.rawUpdate('''
-              UPDATE voters 
-              SET serialInt = CAST(
-                REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-                  serialNo, '০','0'), '১','1'), '২','2'), '৩','3'), '৪','4'), '৫','5'), '৬','6'), '৭','7'), '৮','8'), '৯','9'
-                ) AS INTEGER
-              )
-              WHERE serialInt = 0 OR serialInt IS NULL;
-            ''');
+            await db.execute(
+              'ALTER TABLE voters ADD COLUMN publication_date TEXT;',
+            );
           } catch (_) {}
         }
       },
     );
-  }
-
-  // 🔴 যদি প্যানেল থেকে কেন্দ্র বন্ধ করা হয়, অফলাইন ডেটাবেজের কেন্দ্র মুছে দেওয়া
-  Future<void> clearAllPollingCenters() async {
-    final db = await instance.database;
-    await db.rawUpdate('''
-      UPDATE voters 
-      SET centerName = '', centerNo = '', centerSerial = '', boothsCount = '', pollingCenterId = 0
-    ''');
   }
 
   Future<int> saveVotersFromApi(List<Voter> voterList) async {
@@ -150,9 +138,9 @@ class DBService {
             occupation, address, area, union_or_ward_id, union_ward_id, 
             union_or_ward_name, union_ward_name, ward, centerName, 
             centerNo, centerSerial, boothsCount, centerGenderLabel, 
-            pollingCenterId, isMigrated
+            pollingCenterId, isMigrated, publication_date
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''',
           [
             v.serialNo,
@@ -180,6 +168,7 @@ class DBService {
             ),
             v.pollingCenterId,
             v.isMigrated ? 1 : 0,
+            v.publicationDate, // 🔴 সেভ হচ্ছে
           ],
         );
       }
@@ -224,35 +213,6 @@ class DBService {
       'SELECT DISTINCT ward FROM voters WHERE ward != "" ORDER BY ward ASC',
     );
     return result.map((e) => e['ward'] as String).toList();
-  }
-
-  Future<List<String>> getAvailableAreas({String? ward}) async {
-    final db = await instance.database;
-    String query = 'SELECT DISTINCT area FROM voters WHERE area != ""';
-    List<dynamic> args = [];
-
-    if (ward != null && ward != 'সকল') {
-      query += ' AND ward = ?';
-      args.add(ward);
-    }
-    query += ' ORDER BY area ASC';
-
-    final result = await db.rawQuery(query, args);
-    List<String> areas = result.map((e) => e['area'] as String).toList();
-    return ['সকল', ...areas];
-  }
-
-  Future<List<String>> getAvailableWards() async {
-    final db = await instance.database;
-    final result = await db.rawQuery(
-      'SELECT DISTINCT ward FROM voters WHERE ward != "" ORDER BY ward ASC',
-    );
-    List<String> wards = result.map((e) => e['ward'] as String).toList();
-    return ['সকল', ...wards];
-  }
-
-  Future<List<String>> getAvailableGenders({String? area, String? ward}) async {
-    return ['সকল', 'পুরুষ', 'মহিলা', 'হিজড়া'];
   }
 
   Future<int> getSearchCount({
@@ -466,7 +426,7 @@ class DBService {
       );
       String cleaned = n.replaceAll(prefixes, '');
       final suffixes = RegExp(
-        r'\s+(বেগম|খাতুন|বিবি|বানু|মিয়া|আলী|চৌধুরী|খান|হোসেন|হাসান|আহমেদ|রহমান|হক|শিকদার|মোল্লা|সরকার)$',
+        r'\s+(বেগম|খাতুন|বিবি|বানু|মিয়া|আলী|চৌধুরী|খান|হোসেন|হাসান|আহমেদ|রহমান|হক|শিকদার|মোল্লা|সরকার)$/ui',
         caseSensitive: false,
       );
       return cleaned.replaceAll(suffixes, '').trim();
@@ -534,18 +494,6 @@ class DBService {
   Future<Map<String, dynamic>> getDashboardStats() async {
     final db = await instance.database;
 
-    try {
-      await db.rawUpdate('''
-        UPDATE voters 
-        SET serialInt = CAST(
-          REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-            serialNo, '০','0'), '১','1'), '২','2'), '৩','3'), '৪','4'), '৫','5'), '৬','6'), '৭','7'), '৮','8'), '৯','9'
-          ) AS INTEGER
-        )
-        WHERE serialInt = 0 OR serialInt IS NULL;
-      ''');
-    } catch (_) {}
-
     final totalVoters =
         Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM voters'),
@@ -567,6 +515,15 @@ class DBService {
           ),
         ) ??
         0;
+
+    // 🔴 লোকাল ডেটাবেজ থেকে ভোটার তালিকা প্রকাশের তারিখসমূহ বের করা
+    final pubResult = await db.rawQuery(
+      'SELECT DISTINCT publication_date FROM voters WHERE publication_date != "" AND publication_date IS NOT NULL',
+    );
+    final List<String> publicationDates = pubResult
+        .map((e) => e['publication_date']?.toString() ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
 
     final areaBreakdown = await db.rawQuery('''
       SELECT area,
@@ -618,6 +575,7 @@ class DBService {
       'migratedVoters': totalMigratedVoters,
       'totalCenters': totalCenters,
       'totalAreas': totalAreas,
+      'publicationDates': publicationDates, // 🔴 যুক্ত করা হলো
       'areaBreakdown': areaBreakdown,
       'centerBreakdown': centerBreakdown,
     };

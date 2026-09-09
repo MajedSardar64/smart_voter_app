@@ -69,8 +69,6 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
     setState(() {
       _alreadyDownloadedAreas = downloaded;
     });
-
-    // 🔴 অটো রিলোড বন্ধ করা হলো (ব্যবহারকারী ম্যানুয়ালি ক্লিক করলে তবেই রিলোড হবে)
   }
 
   void _manualRefreshAreas({bool showToast = true}) async {
@@ -154,7 +152,6 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
     });
   }
 
-  // 🔴 লাইভ অ্যানিমেশন ও কাউন্টার সহ এলাকা মুছে ফেলা
   void _startBatchDelete() async {
     final savedSelected = _selectedAreas
         .where((a) => _alreadyDownloadedAreas.contains(a))
@@ -199,7 +196,6 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
 
     if (confirm != true || !mounted) return;
 
-    // 🔴 লাইভ প্রগ্রেস অ্যানিমেশন ডায়ালগ
     int completedCount = 0;
     String currentDeletingArea = savedSelected.first;
 
@@ -240,21 +236,18 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
       ),
     );
 
-    // একে একে এলাকা ডিলিট ও লাইভ কাউন্টার আপডেট
     for (int i = 0; i < savedSelected.length; i++) {
       currentDeletingArea = savedSelected[i];
       await DBService.instance.deleteAreaVoters(currentDeletingArea);
       completedCount = i + 1;
-      await Future.delayed(
-        const Duration(milliseconds: 120),
-      ); // মসৃণ অ্যানিমেশন
+      await Future.delayed(const Duration(milliseconds: 100));
     }
 
     await VoterDownloadManager.instance.syncWithDatabase();
     final downloaded = await DBService.instance.getDownloadedAreas();
 
     if (!mounted) return;
-    Navigator.pop(context); // প্রগ্রেস ডায়ালগ বন্ধ করা
+    Navigator.pop(context);
 
     setState(() {
       _alreadyDownloadedAreas = downloaded;
@@ -331,10 +324,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
     }
 
     final targets = _selectedAreas.toList();
-
-    setState(() {
-      _selectedAreas.clear();
-    });
+    setState(() => _selectedAreas.clear());
 
     VoterDownloadManager.instance.startIncrementalDownload(
       targets,
@@ -470,12 +460,13 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
           ),
           body: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: 14.0,
+              horizontal: 12.0,
               vertical: 6.0,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // প্রশাসনিক কার্ড
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
@@ -497,14 +488,14 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                           const Icon(
                             Icons.location_on,
                             color: Color(0xFF004D40),
-                            size: 20,
+                            size: 18,
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           const Text(
                             'প্রশাসনিক অঞ্চল:',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 13.5,
+                              fontSize: 13,
                               color: Color(0xFF004D40),
                             ),
                           ),
@@ -513,15 +504,15 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                             _candidate!.constituencyOrWard,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                              fontSize: 12.5,
                               color: Color(0xFFE11D48),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 5),
                       Wrap(
-                        spacing: 6,
+                        spacing: 5,
                         runSpacing: 4,
                         children: [
                           if (geo['division']!.isNotEmpty)
@@ -532,24 +523,12 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                             _geoBadge('উপজেলা:', geo['upazila']!),
                         ],
                       ),
-                      if (geo['localUnits']!.isNotEmpty) ...[
-                        const SizedBox(height: 5),
-                        Text(
-                          'পৌরসভা/ইউনিয়ন: ${geo['localUnits']}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 6),
 
+                // কাউন্টার ও লাইভ প্রগ্রেস
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -595,17 +574,49 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                 : null,
                             backgroundColor: Colors.grey.shade300,
                             color: const Color(0xFF00695C),
-                            minHeight: 5,
+                            minHeight: 6,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'প্রসেসিং হচ্ছে: ${downloadState.currentProcessingArea}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.teal.shade800,
-                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'প্রসেসিং: ${downloadState.currentProcessingArea}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.teal.shade900,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            // 🔴 ডাউনলোড বাতিল করার বাটন
+                            InkWell(
+                              onTap: () => VoterDownloadManager.instance
+                                  .cancelDownload(),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade700,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'ডাউনলোড বাতিল',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -613,48 +624,44 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                 ),
                 const SizedBox(height: 4),
 
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 1,
-                  ),
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: isAllSelected,
-                        activeColor: const Color(0xFF00695C),
-                        onChanged: isDownloading
-                            ? null
-                            : (val) => _toggleSelectAll(val ?? false),
+                // সিলেক্ট অল
+                Row(
+                  children: [
+                    Checkbox(
+                      value: isAllSelected,
+                      activeColor: const Color(0xFF00695C),
+                      onChanged: isDownloading
+                          ? null
+                          : (val) => _toggleSelectAll(val ?? false),
+                    ),
+                    Expanded(
+                      child: Text(
+                        isAllSelected
+                            ? 'সবগুলো এলাকা নির্বাচিত'
+                            : 'সবগুলো একসাথে নির্বাচন',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
-                      Expanded(
-                        child: Text(
-                          isAllSelected
-                              ? 'সবগুলো এলাকা নির্বাচিত'
-                              : 'সবগুলো একসাথে নির্বাচন',
-                          style: const TextStyle(
+                    ),
+                    if (_selectedAreas.isNotEmpty && !isDownloading)
+                      TextButton(
+                        onPressed: () => _toggleSelectAll(false),
+                        child: const Text(
+                          'বাতিল',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            fontSize: 12.5,
                           ),
                         ),
                       ),
-                      if (_selectedAreas.isNotEmpty && !isDownloading)
-                        TextButton(
-                          onPressed: () => _toggleSelectAll(false),
-                          child: const Text(
-                            'বাতিল',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
                 const Divider(height: 1),
 
+                // এলাকা তালিকা
                 Expanded(
                   child: unionGroups.isEmpty
                       ? const Center(
@@ -706,7 +713,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                   unionTitle,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 13.5,
+                                    fontSize: 13,
                                   ),
                                 ),
                                 subtitle: Text(
@@ -760,7 +767,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                       title: Text(
                                         areaItem.areaName,
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 12.5,
                                           fontWeight: isSaved
                                               ? FontWeight.bold
                                               : FontWeight.normal,
@@ -771,7 +778,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                         children: [
                                           if (isCurrentlyProcessing)
                                             const Text(
-                                              '⏳ সিঙ্ক হচ্ছে...',
+                                              '⏳ সিঙ্ক...',
                                               style: TextStyle(
                                                 color: Colors.blue,
                                                 fontSize: 10,
@@ -783,9 +790,9 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                               icon: const Icon(
                                                 Icons.sync,
                                                 color: Color(0xFF00695C),
-                                                size: 19,
+                                                size: 18,
                                               ),
-                                              tooltip: 'আপডেট করুন',
+                                              tooltip: 'আপডেট',
                                               onPressed: isDownloading
                                                   ? null
                                                   : () =>
@@ -819,26 +826,26 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                         ),
                 ),
 
-                // বাটন: শুধুমাত্র এলাকা সিলেক্ট থাকলে দেখাবে
+                // অ্যাকশন বাটনসমূহ (রেসপন্সিভ)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: _selectedAreas.isEmpty
                       ? SizedBox(
                           width: double.infinity,
-                          height: 46,
+                          height: 44,
                           child: OutlinedButton.icon(
                             onPressed: _navigateToHome,
                             icon: const Icon(
                               Icons.home_outlined,
                               color: Color(0xFF004D40),
-                              size: 21,
+                              size: 20,
                             ),
                             label: const Text(
                               'হোম পেজে যান',
                               style: TextStyle(
                                 color: Color(0xFF004D40),
                                 fontWeight: FontWeight.bold,
-                                fontSize: 13.5,
+                                fontSize: 13,
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
@@ -854,26 +861,24 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                         )
                       : Row(
                           children: [
-                            Expanded(
-                              flex: 2,
-                              child: SizedBox(
-                                height: 48,
-                                child: OutlinedButton(
-                                  onPressed: _navigateToHome,
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                      color: Color(0xFF004D40),
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.home,
+                            SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: OutlinedButton(
+                                onPressed: _navigateToHome,
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(
                                     color: Color(0xFF004D40),
-                                    size: 22,
                                   ),
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.home,
+                                  color: Color(0xFF004D40),
+                                  size: 20,
                                 ),
                               ),
                             ),
@@ -881,9 +886,9 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
 
                             if (savedSelectedCount > 0) ...[
                               Expanded(
-                                flex: 3,
+                                flex: 2,
                                 child: SizedBox(
-                                  height: 48,
+                                  height: 44,
                                   child: OutlinedButton.icon(
                                     onPressed: isDownloading
                                         ? null
@@ -891,19 +896,24 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                     icon: const Icon(
                                       Icons.delete_outline,
                                       color: Colors.red,
-                                      size: 16,
+                                      size: 15,
                                     ),
-                                    label: Text(
-                                      'মুছুন (${BanglaHelper.toBanglaDigits(savedSelectedCount.toString())})',
-                                      style: const TextStyle(
-                                        color: Colors.red,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11.5,
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        'মুছুন (${BanglaHelper.toBanglaDigits(savedSelectedCount.toString())})',
+                                        style: const TextStyle(
+                                          color: Colors.red,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
                                     style: OutlinedButton.styleFrom(
                                       side: const BorderSide(color: Colors.red),
-                                      padding: EdgeInsets.zero,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -912,11 +922,10 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                 ),
                               ),
                               const SizedBox(width: 6),
-
                               Expanded(
                                 flex: 3,
                                 child: SizedBox(
-                                  height: 48,
+                                  height: 44,
                                   child: ElevatedButton.icon(
                                     onPressed: isDownloading
                                         ? null
@@ -926,19 +935,24 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                     icon: const Icon(
                                       Icons.sync,
                                       color: Colors.white,
-                                      size: 16,
+                                      size: 15,
                                     ),
-                                    label: Text(
-                                      'আপডেট (${BanglaHelper.toBanglaDigits(savedSelectedCount.toString())})',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11.5,
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        'আপডেট (${BanglaHelper.toBanglaDigits(savedSelectedCount.toString())})',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF0284C7),
-                                      padding: EdgeInsets.zero,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -953,7 +967,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                               Expanded(
                                 flex: 4,
                                 child: SizedBox(
-                                  height: 48,
+                                  height: 44,
                                   child: ElevatedButton.icon(
                                     onPressed: isDownloading
                                         ? null
@@ -972,16 +986,19 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
                                         : const Icon(
                                             Icons.cloud_download,
                                             color: Colors.white,
-                                            size: 18,
+                                            size: 16,
                                           ),
-                                    label: Text(
-                                      isDownloading
-                                          ? 'সিঙ্ক হচ্ছে...'
-                                          : 'ডাউনলোড (${BanglaHelper.toBanglaDigits(unsavedSelectedCount.toString())})',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.bold,
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        isDownloading
+                                            ? 'সিঙ্ক হচ্ছে...'
+                                            : 'ডাউনলোড (${BanglaHelper.toBanglaDigits(unsavedSelectedCount.toString())})',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                     style: ElevatedButton.styleFrom(
@@ -1010,7 +1027,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
         Text(
           value,
           style: TextStyle(
-            fontSize: 15.5,
+            fontSize: 15,
             fontWeight: FontWeight.bold,
             color: color,
           ),
@@ -1018,7 +1035,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 10.5,
+            fontSize: 10,
             color: Colors.grey,
             fontWeight: FontWeight.w600,
           ),

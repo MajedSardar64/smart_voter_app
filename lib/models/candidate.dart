@@ -5,7 +5,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
-import '../services/db_service.dart';
 import '../services/offline_image_service.dart';
 
 class WardAllocation {
@@ -76,7 +75,7 @@ class Candidate {
   final String districtName;
   final String upazilaName;
   final int totalVoters;
-  final bool showPollingCenter; // 🔴 নতুন ফ্ল্যাগ
+  final bool showPollingCenter;
   final String? candidateImage;
   final String? symbolImage;
   final String? bannerImage;
@@ -136,16 +135,8 @@ class Candidate {
         name: '',
         postTitle: '',
         electionTitle: '',
-        electionType: 'জাতীয় সংসদ নির্বাচন',
-        constituencyOrWard: '',
-        partyName: 'স্বতন্ত্র',
         symbolName: '',
         electionDate: '',
-        divisionName: '',
-        districtName: '',
-        upazilaName: '',
-        totalVoters: 0,
-        showPollingCenter: true,
         expiryDate: DateTime.now(),
         assignedWards: [],
       );
@@ -370,11 +361,7 @@ class AuthService {
           assignedWards: candidate.assignedWards,
         );
 
-        // 🔴 যদি প্যানেল থেকে ভোট কেন্দ্র বন্ধ করা হয়ে থাকে, তবে অফলাইন SQLite ডেটাবেজ থেকেও তাৎক্ষণিক মুছে ফেলা হবে
-        if (!kIsWeb && !updatedOfflineCandidate.showPollingCenter) {
-          await DBService.instance.clearAllPollingCenters();
-        }
-
+        // 🔴 দ্রষ্টব্য: লোকাল ডেটাবেজের কেন্দ্র মুছে ফেলা হবে না! পারমিশন অফ থাকলে শুধু UI-তে হাইড থাকবে
         final candidateMap = updatedOfflineCandidate.toMap();
         await prefs.setString(
           'saved_candidate_${candidate.userId}',
