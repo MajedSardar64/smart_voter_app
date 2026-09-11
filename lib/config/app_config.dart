@@ -6,7 +6,10 @@ class AppConfig {
   // static const bool blockDeveloperMode = true;
 
   static const String _defaultIpHost = "202.136.89.246:5051";
-  static const String _apiEndpoint = "/VoterListApi/api.php";
+  static const String _apiEndpoint = "/VoterListApi/api-v1/app/api.php";
+
+  // static const String _defaultIpHost = "voterlistapi.opik.net";
+  // static const String _apiEndpoint = "/api-v1/app/api.php";
 
   // 🔴 ডায়নামিক API URL: http এবং https উভয় প্রোটোকলেই স্বয়ংক্রিয়ভাবে কাজ করবে
   static String get apiBaseUrl {
