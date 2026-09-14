@@ -32,7 +32,7 @@ class SlipFormat1 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.person,
             size: width != null ? width / 2 : 40,
             color: Colors.black54,
@@ -46,7 +46,7 @@ class SlipFormat1 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.person,
             size: width != null ? width / 2 : 40,
             color: Colors.black54,
@@ -74,7 +74,7 @@ class SlipFormat1 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.how_to_vote,
             size: width != null ? width / 2 : 40,
             color: Colors.black87,
@@ -88,7 +88,7 @@ class SlipFormat1 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.how_to_vote,
             size: width != null ? width / 2 : 40,
             color: Colors.black87,

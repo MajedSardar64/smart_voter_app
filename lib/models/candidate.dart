@@ -361,7 +361,6 @@ class AuthService {
           assignedWards: candidate.assignedWards,
         );
 
-        // 🔴 দ্রষ্টব্য: লোকাল ডেটাবেজের কেন্দ্র মুছে ফেলা হবে না! পারমিশন অফ থাকলে শুধু UI-তে হাইড থাকবে
         final candidateMap = updatedOfflineCandidate.toMap();
         await prefs.setString(
           'saved_candidate_${candidate.userId}',

@@ -58,9 +58,7 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
   }
 
   void _initDataAndSyncOnline() async {
-    if (_candidate == null) {
-      _candidate = await AuthService.getActiveCandidate();
-    }
+    _candidate ??= await AuthService.getActiveCandidate();
 
     await VoterDownloadManager.instance.syncWithDatabase();
     final downloaded = await DBService.instance.getDownloadedAreas();
@@ -347,7 +345,9 @@ class _WardDownloadScreenState extends State<WardDownloadScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: const Color(0xFF004D40).withOpacity(0.25)),
+        border: Border.all(
+          color: const Color(0xFF004D40).withValues(alpha: 0.25),
+        ),
       ),
       child: RichText(
         text: TextSpan(

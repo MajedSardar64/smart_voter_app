@@ -17,8 +17,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _userController = TextEditingController(text: '');
-  final _passController = TextEditingController(text: '');
+  final _userController = TextEditingController(text: 'vai');
+  final _passController = TextEditingController(text: '123');
   bool _isLoading = false;
   Candidate? _savedCandidate;
 
@@ -137,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
+          errorBuilder: (_, _, _) =>
               Icon(Icons.person, size: size * 0.6, color: Colors.white),
         );
       }
@@ -148,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
+          errorBuilder: (_, _, _) =>
               Icon(Icons.person, size: size * 0.6, color: Colors.white),
         );
       }
@@ -164,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: size,
           height: size,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) =>
+          errorBuilder: (_, _, _) =>
               Icon(Icons.how_to_vote, size: size * 0.6, color: Colors.black87),
         );
       }
@@ -175,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: size,
           height: size,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) =>
+          errorBuilder: (_, _, _) =>
               Icon(Icons.how_to_vote, size: size * 0.6, color: Colors.black87),
         );
       }
@@ -197,12 +197,12 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.amberAccent.withOpacity(0.65),
+          color: Colors.amberAccent.withValues(alpha: 0.65),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.28),
+            color: Colors.black.withValues(alpha: 0.28),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -261,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           border: Border.all(color: Colors.black87, width: 1.8),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 4,
                             ),
                           ],
@@ -378,7 +378,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.4 : 0.25),
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.4 : 0.25,
+                          ),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -396,7 +398,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: Colors.white.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -442,7 +444,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
@@ -474,7 +476,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(

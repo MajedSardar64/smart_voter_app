@@ -153,7 +153,7 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
     String textToCopy =
         '''
 নির্বাচনের তারিখ: ${_candidate?.electionDate ?? ""}
-${centerLine}সিরিয়াল নাম্বার: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}
+$centerLineসিরিয়াল নাম্বার: ${BanglaHelper.toBanglaDigits(widget.voter.serialNo)}
 নাম: ${widget.voter.name}
 ভোটার নং- ${BanglaHelper.toBanglaDigits(widget.voter.voterNo)}, লিঙ্গ: $banglaGender
 জন্ম তারিখ: $banglaDob,   পেশা: ${widget.voter.occupation}
@@ -320,7 +320,7 @@ $pubDateLine'''
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.person,
             size: width != null ? width / 2 : 40,
             color: const Color(0xFF004D40),
@@ -334,7 +334,7 @@ $pubDateLine'''
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.person,
             size: width != null ? width / 2 : 40,
             color: const Color(0xFF004D40),
@@ -362,7 +362,7 @@ $pubDateLine'''
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.how_to_vote,
             size: width != null ? width / 2 : 40,
             color: Colors.black87,
@@ -376,7 +376,7 @@ $pubDateLine'''
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.how_to_vote,
             size: width != null ? width / 2 : 40,
             color: Colors.black87,
@@ -410,7 +410,7 @@ $pubDateLine'''
               borderRadius: BorderRadius.circular(6),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
+                  color: Colors.black.withValues(alpha: 0.12),
                   blurRadius: 2,
                   offset: const Offset(0, 1),
                 ),
@@ -587,8 +587,8 @@ $pubDateLine'''
                                         color: Colors.white,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                              0.25,
+                                            color: Colors.black.withValues(
+                                              alpha: 0.25,
                                             ),
                                             blurRadius: 6,
                                             offset: const Offset(0, 2),
@@ -618,8 +618,8 @@ $pubDateLine'''
                                           color: Colors.white,
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withOpacity(
-                                                0.3,
+                                              color: Colors.black.withValues(
+                                                alpha: 0.3,
                                               ),
                                               blurRadius: 6,
                                               offset: const Offset(1, 2),

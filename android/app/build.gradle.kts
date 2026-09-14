@@ -61,8 +61,12 @@ android {
     }
 }
 
+dependencies {
+    implementation("androidx.concurrent:concurrent-futures:1.2.0")
+}
+
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 }
 
 flutter {

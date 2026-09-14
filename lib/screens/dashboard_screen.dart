@@ -321,7 +321,7 @@ class DashboardScreen extends StatelessWidget {
         color: isHeader
             ? (isDark
                   ? const Color(0xFF334155)
-                  : const Color(0xFFB0BEC5).withOpacity(0.5))
+                  : const Color(0xFFB0BEC5).withValues(alpha: 0.5))
             : Colors.transparent,
       ),
       children: cells.map((cell) {

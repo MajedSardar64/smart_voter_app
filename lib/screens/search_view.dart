@@ -211,7 +211,7 @@ class _SearchViewState extends State<SearchView> {
             fit: BoxFit.cover,
             width: 75,
             height: 75,
-            errorBuilder: (_, __, ___) =>
+            errorBuilder: (_, _, _) =>
                 const Icon(Icons.person, size: 45, color: Colors.teal),
           ),
         );
@@ -224,7 +224,7 @@ class _SearchViewState extends State<SearchView> {
             fit: BoxFit.cover,
             width: 75,
             height: 75,
-            errorBuilder: (_, __, ___) =>
+            errorBuilder: (_, _, _) =>
                 const Icon(Icons.person, size: 45, color: Colors.teal),
           ),
         );
@@ -242,7 +242,7 @@ class _SearchViewState extends State<SearchView> {
             fit: BoxFit.contain,
             width: 75,
             height: 75,
-            errorBuilder: (_, __, ___) =>
+            errorBuilder: (_, _, _) =>
                 const Icon(Icons.lock, size: 45, color: Colors.black87),
           ),
         );
@@ -255,7 +255,7 @@ class _SearchViewState extends State<SearchView> {
             fit: BoxFit.contain,
             width: 75,
             height: 75,
-            errorBuilder: (_, __, ___) =>
+            errorBuilder: (_, _, _) =>
                 const Icon(Icons.lock, size: 45, color: Colors.black87),
           ),
         );
@@ -317,7 +317,7 @@ class _SearchViewState extends State<SearchView> {
                 const SizedBox(height: 10),
 
                 DropdownButtonFormField<String>(
-                  value: _selectedGender,
+                  initialValue: _selectedGender,
                   decoration: const InputDecoration(labelText: 'জেন্ডার:'),
                   items: _genders
                       .map((g) => DropdownMenuItem(value: g, child: Text(g)))
@@ -327,7 +327,9 @@ class _SearchViewState extends State<SearchView> {
                 const SizedBox(height: 10),
 
                 DropdownButtonFormField<String>(
-                  value: _wards.contains(_selectedWard) ? _selectedWard : 'সকল',
+                  initialValue: _wards.contains(_selectedWard)
+                      ? _selectedWard
+                      : 'সকল',
                   decoration: const InputDecoration(
                     labelText: 'ওয়ার্ড বা ইউনিয়ন সিলেক্ট করুন:',
                   ),
@@ -339,7 +341,9 @@ class _SearchViewState extends State<SearchView> {
                 const SizedBox(height: 10),
 
                 DropdownButtonFormField<String>(
-                  value: _areas.contains(_selectedArea) ? _selectedArea : 'সকল',
+                  initialValue: _areas.contains(_selectedArea)
+                      ? _selectedArea
+                      : 'সকল',
                   decoration: const InputDecoration(
                     labelText: 'ভোটার এলাকা সিলেক্ট করুন:',
                   ),
@@ -403,15 +407,13 @@ class _SearchViewState extends State<SearchView> {
                             _candidate!.bannerImage!,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const SizedBox.shrink(),
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
                           )
                         : Image.file(
                             File(_candidate!.bannerImage!),
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const SizedBox.shrink(),
+                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
                           ),
 
                   Container(

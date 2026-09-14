@@ -180,12 +180,15 @@ class BanglaHelper {
     // ২. যদি সরাসরি প্রার্থীর অবজেক্টে না পাওয়া যায়, তবে তার বরাদ্দকৃত এলাকাগুলো থেকে পড়া
     if (division.isEmpty || district.isEmpty || upazila.isEmpty) {
       for (var w in candidate.assignedWards) {
-        if (division.isEmpty && w.divisionName.isNotEmpty)
+        if (division.isEmpty && w.divisionName.isNotEmpty) {
           division = w.divisionName;
-        if (district.isEmpty && w.districtName.isNotEmpty)
+        }
+        if (district.isEmpty && w.districtName.isNotEmpty) {
           district = w.districtName;
-        if (upazila.isEmpty && w.upazilaName.isNotEmpty)
+        }
+        if (upazila.isEmpty && w.upazilaName.isNotEmpty) {
           upazila = w.upazilaName;
+        }
       }
     }
 
@@ -200,18 +203,21 @@ class BanglaHelper {
         : candidate.constituencyOrWard;
 
     List<String> summaryParts = [];
-    if (division.isNotEmpty)
+    if (division.isNotEmpty) {
       summaryParts.add(
         division.contains('বিভাগ') ? division : '$division বিভাগ',
       );
-    if (district.isNotEmpty)
+    }
+    if (district.isNotEmpty) {
       summaryParts.add(district.contains('জেলা') ? district : '$district জেলা');
-    if (upazila.isNotEmpty)
+    }
+    if (upazila.isNotEmpty) {
       summaryParts.add(
         (upazila.contains('উপজেলা') || upazila.contains('থানা'))
             ? upazila
             : '$upazila উপজেলা',
       );
+    }
 
     return {
       'division': division,

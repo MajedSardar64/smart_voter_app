@@ -32,7 +32,7 @@ class SlipFormat2 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.person,
             size: width != null ? width / 2 : 36,
             color: Colors.black54,
@@ -46,7 +46,7 @@ class SlipFormat2 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.person,
             size: width != null ? width / 2 : 36,
             color: Colors.black54,
@@ -74,7 +74,7 @@ class SlipFormat2 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.how_to_vote,
             size: width != null ? width / 2 : 36,
             color: Colors.black87,
@@ -88,7 +88,7 @@ class SlipFormat2 implements SlipTemplate {
           width: width,
           height: height,
           fit: fit,
-          errorBuilder: (_, __, ___) => Icon(
+          errorBuilder: (_, _, _) => Icon(
             Icons.how_to_vote,
             size: width != null ? width / 2 : 36,
             color: Colors.black87,
@@ -189,7 +189,7 @@ class SlipFormat2 implements SlipTemplate {
                   if (candidate?.electionDate != null &&
                       candidate!.electionDate.isNotEmpty)
                     Text(
-                      'তারিখ: ${candidate!.electionDate}',
+                      'তারিখ: ${candidate.electionDate}',
                       style: const TextStyle(
                         fontFamily: 'Bangla',
                         fontSize: 11.5,

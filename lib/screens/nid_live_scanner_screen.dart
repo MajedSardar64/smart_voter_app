@@ -106,8 +106,9 @@ class _NidLiveScannerScreenState extends State<NidLiveScannerScreen>
   }
 
   void _toggleFlash() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized)
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return;
+    }
     try {
       if (_isFlashOn) {
         await _cameraController!.setFlashMode(FlashMode.off);
@@ -123,8 +124,9 @@ class _NidLiveScannerScreenState extends State<NidLiveScannerScreen>
     if (_isDisposed ||
         _cameraController == null ||
         !_cameraController!.value.isInitialized ||
-        _isProcessing)
+        _isProcessing) {
       return;
+    }
 
     try {
       setState(() => _isProcessing = true);
@@ -529,11 +531,11 @@ class _NidLiveScannerScreenState extends State<NidLiveScannerScreen>
               height: 220,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   width: 2.5,
                 ),
                 borderRadius: BorderRadius.circular(14),
-                color: Colors.black.withOpacity(0.12),
+                color: Colors.black.withValues(alpha: 0.12),
               ),
               child: Stack(
                 children: [

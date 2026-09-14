@@ -326,7 +326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: const TextStyle(fontSize: 11),
                     ),
                     value: _isThermalEnabled,
-                    activeColor: const Color(0xFF004D40),
+                    activeThumbColor: const Color(0xFF004D40),
                     onChanged: _togglePrinterSwitch,
                   ),
                   const SizedBox(height: 6),

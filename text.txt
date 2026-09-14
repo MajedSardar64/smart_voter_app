@@ -18,7 +18,10 @@ storeFile=upload-keystore.jks
 
 আমি একটি অ্যান্ড্রয়েড এপ্লিকেশন তৈরি করেছি এ আই স্টুডিওর মাধ্যমে এখানে কিছু আপডেট করতে হবে কিছু ভুল আছে সংশোধন করতে হবে কোন প্রকার লজিক পরিবর্তন না করে আমাকে আপডেট করে দিবেন আমি আপনাকে সম্পূর্ণ ফ্রাই এবং কোথায় কি ফাইল রয়েছে সেগুলো সবই দিচ্ছি
 
+
 E:\android-app\smart_voter_app\lib\main.dart
+E:\android-app\smart_voter_app\lib\config\app_config.dart
+E:\android-app\smart_voter_app\lib\models\candidate.dart
 E:\android-app\smart_voter_app\lib\models\voter.dart
 E:\android-app\smart_voter_app\lib\screens\about_screen.dart
 E:\android-app\smart_voter_app\lib\screens\dashboard_screen.dart
@@ -42,7 +45,11 @@ E:\android-app\smart_voter_app\lib\utils\bangla_helper.dart
 E:\android-app\smart_voter_app\lib\utils\security_helper.dart
 E:\android-app\smart_voter_app\lib\utils\slip_share_helper.dart
 E:\android-app\smart_voter_app\lib\widgets\voter_print_slip.dart
-E:\android-app\smart_voter_app\pubspec.yaml
+E:\android-app\smart_voter_app\lib\widgets\slips\slip_format_1.dart
+E:\android-app\smart_voter_app\lib\widgets\slips\slip_format_2.dart
+E:\android-app\smart_voter_app\lib\widgets\slips\slip_template.dart
+
+
 
 api.php
 candidates.php
@@ -142,7 +149,16 @@ $src="D:\backup\smart_voter_app\lib_txt"; $dst="D:\backup\smart_voter_app\all_fi
 
 
 
+এর সব .dart.txt ফাইলকে lib_txt-এর একটি মাত্র ফোল্ডারের ভিতরে আনতে চান, যেমন:
 
+D:\backup\smart_voter_app\lib_txt\all
+├── main.dart.txt
+├── app.dart.txt
+├── user.dart.txt
+└── home.dart.txt
+
+
+cd /d D:\backup\smart_voter_app\lib_txt && mkdir all && for /r %F in (*.dart.txt) do move "%F" "all\"
 
 
 

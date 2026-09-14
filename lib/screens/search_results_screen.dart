@@ -291,7 +291,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
                       : ListView.separated(
                           controller: _scrollController,
                           itemCount: _voters.length + (_hasMore ? 1 : 0),
-                          separatorBuilder: (_, __) => Divider(
+                          separatorBuilder: (_, _) => Divider(
                             height: 1,
                             color: isDark
                                 ? Colors.white12

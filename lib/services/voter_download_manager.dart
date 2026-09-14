@@ -53,7 +53,6 @@ class VoterDownloadManager {
   bool _isProcessing = false;
   bool _isCancelled = false;
 
-  // 🔴 ডাউনলোড বাতিল করার মেথড
   void cancelDownload() {
     if (!_isProcessing) return;
     _isCancelled = true;
@@ -102,8 +101,8 @@ class VoterDownloadManager {
         userId: cand?.userId,
       );
 
+      // 🔴 ডাটা পাওয়ার পরেই শুধুমাত্র পূর্বের ডাটা ডিলিট ও সেভ হবে
       await DBService.instance.deleteAreaVoters(areaName);
-
       if (voters.isNotEmpty) {
         await DBService.instance.saveVotersFromApi(voters);
       }
@@ -116,7 +115,6 @@ class VoterDownloadManager {
     }
   }
 
-  // 🔴 ব্যাকগ্রাউন্ড রিকভারি ও ক্যানসেল সাপোর্ট সহ ডাউনলোড
   Future<void> startIncrementalDownload(
     List<String> areasToDownload, {
     bool isUpdateMode = false,
@@ -176,7 +174,7 @@ class VoterDownloadManager {
     final cand = await AuthService.getActiveCandidate();
 
     for (int i = 0; i < pendingAreas.length; i++) {
-      if (_isCancelled) break; // ইউজার বাতিল করলে তাৎক্ষণিক লুপ ব্রেক হবে
+      if (_isCancelled) break;
 
       final areaName = pendingAreas[i];
 
@@ -192,7 +190,8 @@ class VoterDownloadManager {
       bool areaSuccess = false;
       int retries = 0;
 
-      while (!areaSuccess && retries < 4 && !_isCancelled) {
+      // 🔴 স্ক্রিন অফ হলে বা নেট স্লো হলে ৫ বার রিট্রাই করবে এবং নিশ্চিত করবে ডাটা এসেছে
+      while (!areaSuccess && retries < 5 && !_isCancelled) {
         try {
           final List<Voter> voters =
               await VoterApiService.fetchVotersForSingleArea(
@@ -200,11 +199,15 @@ class VoterDownloadManager {
                 userId: cand?.userId,
               );
 
+          // নিশ্চিতভাবে ডাটা পাওয়ার পর ডাটাবেজে হাত দেওয়া হবে
           await DBService.instance.deleteAreaVoters(areaName);
 
           if (voters.isNotEmpty) {
             await DBService.instance.saveVotersFromApi(voters);
-            currentSavedVoters = await DBService.instance.getSearchCount();
+            currentSavedVoters +=
+                voters.length; // দ্রুততার জন্য ইন-মেমোরি কাউন্ট
+            savedAreas.add(areaName);
+          } else {
             savedAreas.add(areaName);
           }
           areaSuccess = true;
@@ -212,11 +215,11 @@ class VoterDownloadManager {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('hasDownloadedData', true);
 
-          await Future.delayed(const Duration(milliseconds: 30));
+          await Future.delayed(const Duration(milliseconds: 20));
         } catch (e) {
           retries++;
-          // নেটওয়ার্ক স্লো হলে রিট্রাই সময় বাড়িয়ে ব্যাকগ্রাউন্ড ধরে রাখা
-          await Future.delayed(Duration(milliseconds: 500 * retries));
+          // স্ক্রিন অফে কানেকশন ড্রপ হলে সময় বাড়িয়ে অপেক্ষা করবে
+          await Future.delayed(Duration(milliseconds: 1000 * retries));
         }
       }
 
@@ -231,6 +234,9 @@ class VoterDownloadManager {
       _isCancelled = false;
       return;
     }
+
+    // চূড়ান্ত ডাটাবেজ কাউন্ট রিফ্রেশ
+    currentSavedVoters = await DBService.instance.getSearchCount();
 
     if (failedCount == pendingAreas.length && pendingAreas.isNotEmpty) {
       progressNotifier.value = DownloadProgressState(

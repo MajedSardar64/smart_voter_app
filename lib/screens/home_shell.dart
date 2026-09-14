@@ -66,7 +66,7 @@ class _HomeShellState extends State<HomeShell> {
           fit: BoxFit.cover,
           width: double.infinity,
           height: double.infinity,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
         );
       }
       final file = File(path);
@@ -76,7 +76,7 @@ class _HomeShellState extends State<HomeShell> {
           fit: BoxFit.cover,
           width: double.infinity,
           height: double.infinity,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
         );
       }
     }
@@ -172,7 +172,7 @@ class _HomeShellState extends State<HomeShell> {
                                       (isDark
                                               ? const Color(0xFF0F172A)
                                               : const Color(0xFF00382E))
-                                          .withOpacity(0.85),
+                                          .withValues(alpha: 0.85),
                                       Colors.transparent,
                                     ],
                                     begin: Alignment.bottomCenter,
@@ -258,7 +258,9 @@ class _HomeShellState extends State<HomeShell> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.15),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: const Text(
@@ -382,7 +384,7 @@ class _HomeShellState extends State<HomeShell> {
                           scale: 0.75,
                           child: Switch(
                             value: isDark,
-                            activeColor: Colors.amber,
+                            activeThumbColor: Colors.amber,
                             onChanged: (val) {
                               ThemeService.setTheme(
                                 val ? ThemeMode.dark : ThemeMode.light,

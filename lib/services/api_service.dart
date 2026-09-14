@@ -38,7 +38,7 @@ class CandidateApiService {
 
       final response = await http
           .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
@@ -65,7 +65,6 @@ class CandidateApiService {
             upazilaName: cData['upazila_name'] ?? '',
             totalVoters:
                 int.tryParse(cData['total_voters']?.toString() ?? '0') ?? 0,
-            // 🔴 সার্ভার থেকে প্রাপ্ত শো পোলিং সেন্টার স্ট্যাটাস
             showPollingCenter: cData['show_polling_center'] == null
                 ? true
                 : (cData['show_polling_center'] == true ||
@@ -119,7 +118,7 @@ class CandidateApiService {
 
       final response = await http
           .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
@@ -178,7 +177,7 @@ class VoterApiService {
     if (!kIsWeb) "User-Agent": "SmartVoterSecureClient/5.0",
   };
 
-  // 🔴 প্রার্থীর user_id স্বয়ংক্রিয়ভাবে নিশ্চিত করা হয়েছে
+  // 🔴 গুরুত্বপূর্ণ পরিবর্তন: এরর হলে নীরবে খালি লিস্ট দেবে না, বরং এক্সেপশন থ্রো করবে যাতে ডাটা স্কিপ না হয়
   static Future<List<Voter>> fetchVotersForSingleArea(
     String areaName, {
     String? userId,
@@ -191,29 +190,30 @@ class VoterApiService {
       currentUserId = cand?.userId ?? '';
     }
 
-    try {
-      final encryptedBodyString = SecurityHelper.encryptWholeRequest({
-        "area_name": areaName,
-        "user_id": currentUserId,
-      });
+    final encryptedBodyString = SecurityHelper.encryptWholeRequest({
+      "area_name": areaName,
+      "user_id": currentUserId,
+    });
 
-      final response = await http
-          .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
-          .timeout(const Duration(seconds: 40));
+    final response = await http
+        .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
+        .timeout(const Duration(seconds: 45));
 
-      if (response.statusCode == 200) {
-        final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
+    if (response.statusCode == 200) {
+      final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
 
-        if (res != null &&
-            (res['status'] == 'success' || res['success'] == true)) {
-          final List list = res['voters'] ?? [];
-          return await compute(_parseVotersBackground, list);
-        }
+      if (res != null &&
+          (res['status'] == 'success' || res['success'] == true)) {
+        final List list = res['voters'] ?? [];
+        return await compute(_parseVotersBackground, list);
+      } else {
+        throw Exception(res?['message'] ?? 'সার্ভার থেকে সঠিক তথ্য আসেনি');
       }
-    } catch (e) {
-      print("Area $areaName download error: $e");
+    } else {
+      throw HttpException(
+        'সার্ভার রেসপন্স ব্যর্থ (Status: ${response.statusCode})',
+      );
     }
-    return [];
   }
 
   static Future<Map<String, dynamic>> searchVotersOnline({
@@ -296,7 +296,7 @@ class VoterApiService {
       final encryptedBody = SecurityHelper.encryptWholeRequest(payload);
       final response = await http
           .post(Uri.parse(url), headers: _headers, body: encryptedBody)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
@@ -304,33 +304,7 @@ class VoterApiService {
             (res['status'] == 'success' || res['data'] != null)) {
           final List rawList = res['data'] ?? [];
           return rawList
-              .map(
-                (item) => Voter(
-                  id: int.tryParse(item['id']?.toString() ?? '0') ?? 0,
-                  serialNo: item['serial_no']?.toString() ?? '',
-                  voterNo: item['voter_no']?.toString() ?? '',
-                  name: item['name']?.toString() ?? '',
-                  gender: item['gender']?.toString() ?? 'পুরুষ',
-                  dob: item['date_of_birth']?.toString() ?? '',
-                  fatherOrHusband: item['father']?.toString() ?? '',
-                  mother: item['mother']?.toString() ?? '',
-                  occupation: item['occupation']?.toString() ?? 'প্রযোজ্য নয়',
-                  address: item['address']?.toString() ?? '',
-                  area: item['voter_area_name']?.toString() ?? '',
-                  ward: item['union_name']?.toString() ?? '',
-                  centerName: item['voter_center']?.toString() ?? '',
-                  centerNo: item['center_no']?.toString() ?? '',
-                  centerSerial: item['center_serial']?.toString() ?? '',
-                  boothsCount: item['booths_count']?.toString() ?? '',
-                  centerGenderLabel:
-                      item['center_gender_label']?.toString() ?? '',
-                  pollingCenterId:
-                      int.tryParse(
-                        item['polling_center_id']?.toString() ?? '0',
-                      ) ??
-                      0,
-                ),
-              )
+              .map((item) => Voter.fromMap(Map<String, dynamic>.from(item)))
               .where((v) => v.voterNo != voter.voterNo)
               .toList();
         }
@@ -352,7 +326,7 @@ class VoterApiService {
       });
       final response = await http
           .post(Uri.parse(url), headers: _headers, body: encryptedBody)
-          .timeout(const Duration(seconds: 12));
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
