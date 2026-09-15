@@ -101,7 +101,6 @@ class VoterDownloadManager {
         userId: cand?.userId,
       );
 
-      // 🔴 ডাটা পাওয়ার পরেই শুধুমাত্র পূর্বের ডাটা ডিলিট ও সেভ হবে
       await DBService.instance.deleteAreaVoters(areaName);
       if (voters.isNotEmpty) {
         await DBService.instance.saveVotersFromApi(voters);
@@ -115,6 +114,7 @@ class VoterDownloadManager {
     }
   }
 
+  // 🔴 অপ্টিমাইজড ব্যাচ ডাউনলোড ইঞ্জিন (একসাথে ৩-৪টি এলাকা ব্যাচে ডাউনলোড হবে)
   Future<void> startIncrementalDownload(
     List<String> areasToDownload, {
     bool isUpdateMode = false,
@@ -172,59 +172,66 @@ class VoterDownloadManager {
 
     int failedCount = 0;
     final cand = await AuthService.getActiveCandidate();
+    const int batchSize = 4; // ⚡ প্রতি ব্যাচে ৪টি করে এলাকা একবারে ডাউনলোড হবে
 
-    for (int i = 0; i < pendingAreas.length; i++) {
+    for (int i = 0; i < pendingAreas.length; i += batchSize) {
       if (_isCancelled) break;
 
-      final areaName = pendingAreas[i];
+      final currentBatch = pendingAreas.sublist(
+        i,
+        (i + batchSize > pendingAreas.length)
+            ? pendingAreas.length
+            : i + batchSize,
+      );
+
+      final displayArea = currentBatch.length == 1
+          ? currentBatch.first
+          : '${currentBatch.first} সহ ${currentBatch.length} টি এলাকা';
 
       progressNotifier.value = DownloadProgressState(
         status: DownloadStatus.running,
         completedAreasCount: i,
         totalAreasCount: pendingAreas.length,
         totalVotersSaved: currentSavedVoters,
-        currentProcessingArea: areaName,
+        currentProcessingArea: displayArea,
         savedAreaNames: savedAreas,
       );
 
-      bool areaSuccess = false;
+      bool batchSuccess = false;
       int retries = 0;
 
-      // 🔴 স্ক্রিন অফ হলে বা নেট স্লো হলে ৫ বার রিট্রাই করবে এবং নিশ্চিত করবে ডাটা এসেছে
-      while (!areaSuccess && retries < 5 && !_isCancelled) {
+      while (!batchSuccess && retries < 5 && !_isCancelled) {
         try {
           final List<Voter> voters =
-              await VoterApiService.fetchVotersForSingleArea(
-                areaName,
+              await VoterApiService.fetchVotersForBatchAreas(
+                currentBatch,
                 userId: cand?.userId,
               );
 
-          // নিশ্চিতভাবে ডাটা পাওয়ার পর ডাটাবেজে হাত দেওয়া হবে
-          await DBService.instance.deleteAreaVoters(areaName);
+          // ডাটা পাওয়ার পরই নিরাপদে ডিলিট ও সেভ
+          await DBService.instance.deleteMultipleAreas(currentBatch);
 
           if (voters.isNotEmpty) {
             await DBService.instance.saveVotersFromApi(voters);
-            currentSavedVoters +=
-                voters.length; // দ্রুততার জন্য ইন-মেমোরি কাউন্ট
-            savedAreas.add(areaName);
-          } else {
-            savedAreas.add(areaName);
+            currentSavedVoters += voters.length;
           }
-          areaSuccess = true;
+
+          savedAreas.addAll(currentBatch);
+          batchSuccess = true;
 
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('hasDownloadedData', true);
 
-          await Future.delayed(const Duration(milliseconds: 20));
+          await Future.delayed(const Duration(milliseconds: 15));
         } catch (e) {
           retries++;
-          // স্ক্রিন অফে কানেকশন ড্রপ হলে সময় বাড়িয়ে অপেক্ষা করবে
-          await Future.delayed(Duration(milliseconds: 1000 * retries));
+          // স্ক্রিন লক বা কানেকশন ফ্ল্যাকচুয়েশনে অপেক্ষা
+          await Future.delayed(Duration(milliseconds: 800 * retries));
         }
       }
 
-      if (!areaSuccess && !_isCancelled) {
-        failedCount++;
+      if (!batchSuccess && !_isCancelled) {
+        failedCount += currentBatch.length;
       }
     }
 
@@ -235,7 +242,6 @@ class VoterDownloadManager {
       return;
     }
 
-    // চূড়ান্ত ডাটাবেজ কাউন্ট রিফ্রেশ
     currentSavedVoters = await DBService.instance.getSearchCount();
 
     if (failedCount == pendingAreas.length && pendingAreas.isNotEmpty) {

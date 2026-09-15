@@ -168,7 +168,7 @@ class DBService {
             ),
             v.pollingCenterId,
             v.isMigrated ? 1 : 0,
-            v.publicationDate, // 🔴 সেভ হচ্ছে
+            v.publicationDate,
           ],
         );
       }
@@ -414,67 +414,168 @@ class DBService {
     return result.map((json) => Voter.fromMap(json)).toList();
   }
 
+  // 🔴 শতভাগ নিখুঁত ফ্যামিলি সার্চ (হোল্ডিং ম্যাচ + বড় শব্দের অগ্রাধিকার)
   Future<List<Voter>> searchFamily(Voter voter) async {
     final db = await instance.database;
 
-    String extractCoreName(String name) {
-      String n = name.trim();
-      if (n.isEmpty || n == 'প্রযোজ্য নয়' || n == 'মৃত') return '';
-      final prefixes = RegExp(
-        r'^(মোঃ|মো:|মো\.|মোসাঃ|মোসা:|মোসা\.|মুহাম্মদ|মোহাম্মদ|মৃত|আঃ|আ:|আ\.|মিঃ|মি:|মি\.|শেখ|সৈয়দ|কাজী|এমডি|MD|MST|মিসেস|ডাঃ)\s+',
-        caseSensitive: false,
-      );
-      String cleaned = n.replaceAll(prefixes, '');
-      final suffixes = RegExp(
-        r'\s+(বেগম|খাতুন|বিবি|বানু|মিয়া|আলী|চৌধুরী|খান|হোসেন|হাসান|আহমেদ|রহমান|হক|শিকদার|মোল্লা|সরকার)$/ui',
-        caseSensitive: false,
-      );
-      return cleaned.replaceAll(suffixes, '').trim();
+    // ১. বাংলা নামের সব বৈচিত্র্য স্বাভাবিকীকরণ
+    String normalizeBanglaSpelling(String text) {
+      String t = text.trim();
+      if (t.isEmpty || t == 'প্রযোজ্য নয়' || t == 'মৃত') return '';
+
+      return t
+          .replaceAll('আবদুল্লাহ', 'আব্দুল্লাহ')
+          .replaceAll('আবদুল', 'আব্দুল')
+          .replaceAll('আঃ', 'আব্দুল')
+          .replaceAll('মোহাম্মদ', 'মোঃ')
+          .replaceAll('মুহাম্মদ', 'মোঃ')
+          .replaceAll('মোহাঃ', 'মোঃ')
+          .replaceAll('মোসাঃ', 'মোসাম্মৎ')
+          .replaceAll('মোসা:', 'মোসাম্মৎ')
+          .replaceAll('মোসা.', 'মোসাম্মৎ')
+          .replaceAll('মো:', 'মোঃ')
+          .replaceAll('মো.', 'মোঃ')
+          .replaceAll('মিঃ', 'মি.')
+          .replaceAll('এমডি', 'মোঃ')
+          .replaceAll('MD', 'মোঃ')
+          .replaceAll('Md.', 'মোঃ');
     }
 
-    final String coreFather = extractCoreName(voter.fatherOrHusband);
-    final String coreMother = extractCoreName(voter.mother);
-    final String coreSelf = extractCoreName(voter.name);
+    // ২. স্মার্ট কোর নেম ডিটেকশন
+    String extractSmartCoreName(String raw) {
+      String norm = normalizeBanglaSpelling(raw);
+      if (norm.isEmpty) return '';
+
+      final prefixes = RegExp(
+        r'^(মোঃ|মোসাম্মৎ|মৃত|মি\.|শেখ|সৈয়দ|কাজী|মিসেস|ডাঃ)\s+',
+        caseSensitive: false,
+      );
+      String withoutPrefix = norm.replaceAll(prefixes, '').trim();
+
+      final suffixes = RegExp(
+        r'\s+(বেগম|খাতুন|বিবি|বানু|মিয়া|আলী|চৌধুরী|খান|হোসেন|হাসান|আহমেদ|রহমান|হক|শিকদার|মোল্লা|সরকার)$',
+        caseSensitive: false,
+      );
+      String withoutSuffix = withoutPrefix.replaceAll(suffixes, '').trim();
+
+      if (withoutSuffix.length < 3) {
+        return withoutPrefix.isNotEmpty ? withoutPrefix : norm;
+      }
+      return withoutSuffix;
+    }
+
+    // ৩. 🔴 বড় শব্দকে আগে প্রাধান্য দিয়ে টোকেনাইজেশন (দৈর্ঘ্যের ক্রমানুসারে সর্ট)
+    List<String> getMeaningfulTokensSortedByLength(String raw) {
+      String norm = normalizeBanglaSpelling(raw);
+      final words = norm
+          .split(RegExp(r'[\s\.\-]+'))
+          .map((w) => w.trim())
+          .where((w) => w.length >= 3 && w != 'মোঃ' && w != 'মোসাম্মৎ')
+          .toSet()
+          .toList();
+
+      // বড় শব্দগুলোকে সবার আগে আনা
+      words.sort((a, b) => b.length.compareTo(a.length));
+      return words;
+    }
+
+    // ৪. 🔴 ঠিকানা থেকে হোল্ডিং/বাসা নম্বর সঠিকভাবে বের করার হেল্পার
+    String extractHoldingNumber(String address) {
+      String addr = address.trim();
+      if (addr.isEmpty) return '';
+
+      final match = RegExp(
+        r'(?:হোল্ডিং|বাসা|রোড|বাড়ি|বাড়ি|House|Holding|Road)[\s\:\-\/№#]*([A-Za-z০-৯0-9\/\-]+)',
+        caseSensitive: false,
+      ).firstMatch(addr);
+
+      if (match != null) {
+        return BanglaHelper.toBanglaDigits(match.group(1)!.trim());
+      }
+
+      final startMatch = RegExp(r'^([A-Za-z\u0980-\u09FF০-৯0-9\/\-]+)')
+          .firstMatch(addr);
+      if (startMatch != null) {
+        String token = startMatch.group(1)!.trim();
+        if (RegExp(r'[০-৯0-9]').hasMatch(token) && token.length <= 12) {
+          return BanglaHelper.toBanglaDigits(token);
+        }
+      }
+      return '';
+    }
+
+    final String coreFather = extractSmartCoreName(voter.fatherOrHusband);
+    final String coreMother = extractSmartCoreName(voter.mother);
+    final String coreSelf = extractSmartCoreName(voter.name);
     final String gender = BanglaHelper.formatGender(voter.gender);
+    final String voterHolding = extractHoldingNumber(voter.address);
+
+    final List<String> fTokens = getMeaningfulTokensSortedByLength(
+      voter.fatherOrHusband,
+    );
+    final List<String> mTokens = getMeaningfulTokensSortedByLength(
+      voter.mother,
+    );
+    final List<String> sTokens = getMeaningfulTokensSortedByLength(voter.name);
 
     List<String> conditions = [];
     List<dynamic> args = [];
 
+    // ক. পিতা ও মাতার মূল নাম সম্পূর্ণ মিল
     if (coreFather.isNotEmpty && coreMother.isNotEmpty) {
       conditions.add('(fatherOrHusband LIKE ? AND mother LIKE ?)');
       args.addAll(['%$coreFather%', '%$coreMother%']);
 
-      final fWords = coreFather.split(' ').where((w) => w.length >= 3);
-      final mWords = coreMother.split(' ').where((w) => w.length >= 3);
-      for (var fw in fWords) {
-        for (var mw in mWords) {
+      // বড় শব্দগুলোকে আগে মিলিয়ে পেয়ার ম্যাচিং
+      for (var ft in fTokens) {
+        for (var mt in mTokens) {
           conditions.add('(fatherOrHusband LIKE ? AND mother LIKE ?)');
-          args.addAll(['%$fw%', '%$mw%']);
+          args.addAll(['%$ft%', '%$mt%']);
         }
       }
     }
 
+    // খ. নিজের নাম অন্যের পিতা অথবা মাতা হিসেবে
     if (coreSelf.isNotEmpty) {
-      if (gender == 'মহিলা') {
-        conditions.add('(mother LIKE ?)');
-        args.add('%$coreSelf%');
-      } else {
-        conditions.add('(fatherOrHusband LIKE ?)');
-        args.add('%$coreSelf%');
-      }
+      conditions.add('(fatherOrHusband LIKE ?)');
+      args.add('%$coreSelf%');
+      conditions.add('(mother LIKE ?)');
+      args.add('%$coreSelf%');
+    }
+
+    // গ. পিতার মূল নাম সম্পূর্ণ মিল
+    if (coreFather.isNotEmpty) {
+      conditions.add('(fatherOrHusband LIKE ?)');
+      args.add('%$coreFather%');
+    }
+
+    // ঘ. মাতার মূল নাম সম্পূর্ণ মিল
+    if (coreMother.isNotEmpty) {
+      conditions.add('(mother LIKE ?)');
+      args.add('%$coreMother%');
+    }
+
+    // ঙ. হোল্ডিং নম্বর ও একই এলাকা ম্যাচিং (অন্য এলাকার একই হোল্ডিং যেন না আসে)
+    if (voterHolding.isNotEmpty && voter.area.isNotEmpty) {
+      conditions.add('(address LIKE ? AND area = ?)');
+      args.addAll(['%$voterHolding%', voter.area]);
     }
 
     if (conditions.isEmpty) return [];
 
     final String orWhere = conditions.join(' OR ');
+
+    // 🔴 SQL লেভেলেই পিতা+মাতা এবং বড় শব্দকে সর্বোচ্চ স্কোর দিয়ে আনা
     final String sql =
         '''
       SELECT * FROM voters 
       WHERE id != ? AND voterNo != ? AND ($orWhere)
       ORDER BY 
-        (CASE WHEN (fatherOrHusband LIKE ? AND mother LIKE ?) THEN 40 ELSE 0 END) +
-        (CASE WHEN (fatherOrHusband LIKE ? OR mother LIKE ?) THEN 25 ELSE 0 END) DESC
-      LIMIT 50
+        (CASE WHEN (fatherOrHusband LIKE ? AND mother LIKE ?) THEN 100 ELSE 0 END) +
+        (CASE WHEN (address LIKE ? AND area = ?) THEN 45 ELSE 0 END) +
+        (CASE WHEN (fatherOrHusband LIKE ? OR mother LIKE ?) THEN 35 ELSE 0 END) DESC,
+        id ASC
+      LIMIT 80
     ''';
 
     final List<dynamic> queryParams = [
@@ -483,12 +584,158 @@ class DBService {
       ...args,
       '%$coreFather%',
       '%$coreMother%',
-      '%$coreSelf%',
-      '%$coreSelf%',
+      voterHolding.isNotEmpty ? '%$voterHolding%' : '',
+      voter.area,
+      '%$coreFather%',
+      '%$coreMother%',
     ];
 
     final result = await db.rawQuery(sql, queryParams);
-    return result.map((json) => Voter.fromMap(json)).toList();
+    List<Map<String, dynamic>> scoredList = [];
+
+    for (var row in result) {
+      final v = Voter.fromMap(row);
+      final rFather = extractSmartCoreName(v.fatherOrHusband);
+      final rMother = extractSmartCoreName(v.mother);
+      final rName = extractSmartCoreName(v.name);
+
+      final List<String> rFTokens = getMeaningfulTokensSortedByLength(
+        v.fatherOrHusband,
+      );
+      final List<String> rMTokens = getMeaningfulTokensSortedByLength(v.mother);
+      final List<String> rSTokens = getMeaningfulTokensSortedByLength(v.name);
+
+      // 🔴 হোল্ডিং নম্বর ম্যাচ নিশ্চিত করা (শুধুমাত্র একই এলাকা হলেই সত্য হবে)
+      final bool isSameArea = (v.area.trim() == voter.area.trim());
+      final String rHolding = extractHoldingNumber(v.address);
+      final bool isSameHoldingAndArea =
+          isSameArea &&
+          voterHolding.isNotEmpty &&
+          rHolding.isNotEmpty &&
+          (voterHolding == rHolding);
+
+      int score = 0;
+      String relation = '';
+
+      final bool fMatchExact =
+          coreFather.isNotEmpty &&
+          (rFather.contains(coreFather) || coreFather.contains(rFather));
+      final bool mMatchExact =
+          coreMother.isNotEmpty &&
+          (rMother.contains(coreMother) || coreMother.contains(rMother));
+
+      // ১. সহোদর ভাই/বোন (পিতা ও মাতা উভয়ের মিল): ১০০%
+      if (fMatchExact && mMatchExact) {
+        score = 100;
+        relation = isSameHoldingAndArea
+            ? '১০০% মিল (একই বাসার সহোদর)'
+            : (isSameArea
+                  ? '১০০% মিল (সহোদর ভাই/বোন)'
+                  : '১০০% মিল (অন্য এলাকায় সহোদর)');
+      }
+      // ২. পিতা ও মাতার শব্দ ম্যাচ (বড় শব্দ আগে বিবেচনায় নিয়ে): ৯০% - ৯৫%
+      else if (fTokens.any((t) => rFTokens.contains(t)) &&
+          mTokens.any((t) => rMTokens.contains(t))) {
+        score = isSameHoldingAndArea ? 95 : 90;
+        relation = isSameHoldingAndArea
+            ? '৯৫% মিল (একই বাসা ও পিতা-মাতা)'
+            : '৯০% মিল (পিতা ও মাতার নাম)';
+      }
+      // ৩. স্বামী বা স্ত্রী ম্যাচ: ৮৫% - ৯০%
+      else if (gender == 'পুরুষ' &&
+          (rFather == coreSelf || rFTokens.any((t) => sTokens.contains(t))) &&
+          isSameArea) {
+        score = isSameHoldingAndArea ? 95 : 90;
+        relation = isSameHoldingAndArea
+            ? '৯৫% মিল (স্ত্রী - একই বাসা)'
+            : '৯০% মিল (স্ত্রী/সন্তান)';
+      } else if (gender == 'মহিলা' &&
+          (voter.fatherOrHusband.contains(rName) ||
+              sTokens.any((t) => rSTokens.contains(t))) &&
+          isSameArea) {
+        score = isSameHoldingAndArea ? 95 : 90;
+        relation = isSameHoldingAndArea
+            ? '৯৫% মিল (স্বামী - একই বাসা)'
+            : '৯০% মিল (স্বামী)';
+      }
+      // ৪. সন্তান ম্যাচ: ৮০% - ৮৫%
+      else if (coreSelf.isNotEmpty &&
+          (rFather == coreSelf || rMother == coreSelf)) {
+        score = isSameHoldingAndArea ? 85 : 80;
+        relation = isSameHoldingAndArea
+            ? '৮৫% মিল (সন্তান - একই বাসা)'
+            : '৮০% মিল (সন্তান)';
+      }
+      // ৫. পিতা মিল + একই বাসা/হোল্ডিং এবং এরিয়া: ৮০%
+      else if (fMatchExact && isSameHoldingAndArea) {
+        score = 80;
+        relation = '৮০% মিল (পিতা ও একই বাসা)';
+      }
+      // ৬. পিতা মিল + একই এলাকা: ৭৫%
+      else if (fMatchExact && isSameArea) {
+        score = 75;
+        relation = '৭৫% মিল (পিতা ও এলাকা)';
+      }
+      // ৭. মাতা মিল + একই বাসা/হোল্ডিং: ৭৫%
+      else if (mMatchExact && isSameHoldingAndArea) {
+        score = 75;
+        relation = '৭৫% মিল (মাতা ও একই বাসা)';
+      }
+      // ৮. মাতা মিল + একই এলাকা: ৭০%
+      else if (mMatchExact && isSameArea) {
+        score = 70;
+        relation = '৭০% মিল (মাতা ও এলাকা)';
+      }
+      // ৯. ভিন্ন এলাকায় পিতার সম্পূর্ণ মিল: ৬০%
+      else if (fMatchExact) {
+        score = 60;
+        relation = '৬০% মিল (পিতার নাম মিল)';
+      }
+      // ১০. বড় শব্দ (Length >= 5) মিললে ৬০%, ছোট শব্দ মিললে ৫০%
+      else {
+        String? matchedWord;
+        for (var ft in fTokens) {
+          if (rFTokens.contains(ft)) {
+            matchedWord = ft;
+            break;
+          }
+        }
+        if (matchedWord == null) {
+          for (var mt in mTokens) {
+            if (rMTokens.contains(mt)) {
+              matchedWord = mt;
+              break;
+            }
+          }
+        }
+
+        if (matchedWord != null) {
+          if (matchedWord.length >= 5) {
+            score = isSameArea ? 65 : 60;
+            relation = '$score% মিল (${matchedWord} - মূল নাম)';
+          } else {
+            score = 50;
+            relation = '৫০% মিল (${matchedWord})';
+          }
+        }
+      }
+
+      // 🔴 ৫০% বা তার বেশি মিললেই ফলাফলে যুক্ত হবে
+      if (score >= 50) {
+        final voterMap = v.toMap();
+        voterMap['match_percent'] = score;
+        voterMap['relation_tag'] = relation;
+        scoredList.add(voterMap);
+      }
+    }
+
+    // সর্বোচ্চ মিল (১০০%, ৯৫%, ৯০%, ৮৫%, ৮০%, ৭৫%, ৭০%, ৬৫%, ৬০%, ৫০%) ক্রমানুসারে সাজানো
+    scoredList.sort(
+      (a, b) =>
+          (b['match_percent'] as int).compareTo(a['match_percent'] as int),
+    );
+
+    return scoredList.map((m) => Voter.fromMap(m)).toList();
   }
 
   Future<Map<String, dynamic>> getDashboardStats() async {
@@ -516,7 +763,6 @@ class DBService {
         ) ??
         0;
 
-    // 🔴 লোকাল ডেটাবেজ থেকে ভোটার তালিকা প্রকাশের তারিখসমূহ বের করা
     final pubResult = await db.rawQuery(
       'SELECT DISTINCT publication_date FROM voters WHERE publication_date != "" AND publication_date IS NOT NULL',
     );
@@ -575,7 +821,7 @@ class DBService {
       'migratedVoters': totalMigratedVoters,
       'totalCenters': totalCenters,
       'totalAreas': totalAreas,
-      'publicationDates': publicationDates, // 🔴 যুক্ত করা হলো
+      'publicationDates': publicationDates,
       'areaBreakdown': areaBreakdown,
       'centerBreakdown': centerBreakdown,
     };

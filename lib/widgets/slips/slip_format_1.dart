@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../config/app_config.dart';
 import '../../models/candidate.dart';
 import '../../models/voter.dart';
 import '../../utils/bangla_helper.dart';
@@ -153,8 +154,11 @@ class SlipFormat1 implements SlipTemplate {
         ? " [বুথ: ${BanglaHelper.toBanglaDigits(voter.boothsCount)}]"
         : "";
 
-    // 🔴 মোট প্রস্থ ৫০০ পিক্সেলের মধ্যে নিখুঁতভাবে নির্ধারিত (৪ পিক্সেল ওভারফ্লো দূরীকরণ)
-    // প্যাডিং: ৮ পিক্সেল (৪+৪)। বাম বক্স: ২১২, স্পেসার: ৬, ডান বক্স: ২৭৪ = ৪৯২ + ৮ = ৫০০ পিক্সেল ফিক্সড।
+    // AppConfig থেকে ফুটার টেক্সট নিশ্চিত করা
+    final effectiveFooter = footerText.isNotEmpty
+        ? footerText
+        : AppConfig.thermalFooterInfo;
+
     Widget slipContent = Container(
       width: 500,
       color: Colors.white,
@@ -166,7 +170,6 @@ class SlipFormat1 implements SlipTemplate {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // বাম পাশের প্রার্থীর কার্ড (উইডথ: ২১২)
               Container(
                 width: 212,
                 height: 232,
@@ -264,7 +267,6 @@ class SlipFormat1 implements SlipTemplate {
               ),
               const SizedBox(width: 6),
 
-              // ডান পাশের ভোটারের তথ্য (উইডথ: ২৭৪)
               Container(
                 width: 274,
                 height: 232,
@@ -330,12 +332,11 @@ class SlipFormat1 implements SlipTemplate {
             ],
           ),
 
-          // 🔴 ফুটার: অপ্রয়োজনীয় "ফরম্যাট ১" লেখা বাদ দেওয়া হয়েছে
           Container(
             width: 492,
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              footerText,
+              effectiveFooter,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: 'Bangla',

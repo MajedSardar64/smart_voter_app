@@ -31,7 +31,6 @@ class _HomeShellState extends State<HomeShell> {
     _currentBody = OverviewScreen(onNavigateSearch: _switchSearchMode);
   }
 
-  // ওভারভিউ পেজে ফিরে যাওয়ার কেন্দ্রীয় মেথড
   void _goToOverview() {
     setState(() {
       _activeMenuIndex = 0;
@@ -87,19 +86,16 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 🔴 PopScope দিয়ে ফোনের ব্যাক বাটন নিয়ন্ত্রণ
     Widget mainContent = PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
-        // ১. সার্চ বা অন্য যেকোনো পেজে থাকলে ব্যাক চাপলে ওভারভিউতে ফিরবে
         if (_activeMenuIndex != 0) {
           _goToOverview();
           return;
         }
 
-        // ২. হোমে থাকা অবস্থায় ব্যাক চাপলে অ্যাপ বন্ধের কনফার্মেশন চাইবে
         final shouldExit = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -132,7 +128,6 @@ class _HomeShellState extends State<HomeShell> {
         }
       },
       child: Scaffold(
-        // 🔴 এখানে AppBar-এ কোনো leading ব্যাক বাটন নেই, ফলে স্বয়ংক্রিয়ভাবে ড্রয়ার/মেনুবার বাটন (☰) থাকবে
         appBar: AppBar(title: Text(_pageTitle)),
         drawer: Drawer(
           child: Container(
@@ -349,14 +344,9 @@ class _HomeShellState extends State<HomeShell> {
                           _currentBody = const DashboardScreen();
                         });
                       }),
-                      _menuItem(8, Icons.info_outline, 'আমাদের সম্পর্কে', () {
-                        Navigator.pop(context);
-                        setState(() {
-                          _activeMenuIndex = 8;
-                          _pageTitle = 'আমাদের সম্পর্কে';
-                          _currentBody = const AboutScreen();
-                        });
-                      }),
+
+                      // 🔴 নিচের সেকশন: সেটিংস -> আমাদের সম্পর্কে -> ডার্ক মোড -> প্রস্থান
+                      const Divider(color: Colors.white24, height: 16),
                       _menuItem(9, Icons.settings_outlined, 'সেটিংস', () {
                         Navigator.pop(context);
                         setState(() {
@@ -365,7 +355,14 @@ class _HomeShellState extends State<HomeShell> {
                           _currentBody = const SettingsScreen();
                         });
                       }),
-                      const Divider(color: Colors.white24, height: 16),
+                      _menuItem(8, Icons.info_outline, 'আমাদের সম্পর্কে', () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _activeMenuIndex = 8;
+                          _pageTitle = 'আমাদের সম্পর্কে';
+                          _currentBody = const AboutScreen();
+                        });
+                      }),
                       ListTile(
                         dense: true,
                         leading: Icon(

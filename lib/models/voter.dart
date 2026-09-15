@@ -24,7 +24,9 @@ class Voter {
   final String centerGenderLabel;
   final int pollingCenterId;
   final bool isMigrated;
-  final String publicationDate; // 🔴 নতুন যুক্ত হওয়া ফিল্ড
+  final String publicationDate;
+  final int matchPercent; // 🔴 ফ্যামিলি সার্চে মিলের হার (৫০% - ১০০%)
+  final String relationTag; // 🔴 সম্পর্কের ধরন (যেমন: সহোদর, স্বামী/স্ত্রী)
 
   Voter({
     required this.id,
@@ -51,6 +53,8 @@ class Voter {
     this.pollingCenterId = 0,
     this.isMigrated = false,
     this.publicationDate = '',
+    this.matchPercent = 0,
+    this.relationTag = '',
   });
 
   String get displayWard {
@@ -94,7 +98,9 @@ class Voter {
       'centerGenderLabel': centerGenderLabel,
       'pollingCenterId': pollingCenterId,
       'isMigrated': isMigrated ? 1 : 0,
-      'publication_date': publicationDate, // 🔴 সেভ
+      'publication_date': publicationDate,
+      'match_percent': matchPercent,
+      'relation_tag': relationTag,
     };
   }
 
@@ -157,7 +163,14 @@ class Voter {
       publicationDate:
           map['publication_date']?.toString() ??
           map['publicationDate']?.toString() ??
-          '', // 🔴 লোড
+          '',
+      matchPercent: map['match_percent'] is int
+          ? map['match_percent']
+          : (int.tryParse(map['match_percent']?.toString() ?? '0') ?? 0),
+      relationTag:
+          map['relation_tag']?.toString() ??
+          map['relationTag']?.toString() ??
+          '',
     );
   }
 }

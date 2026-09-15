@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/app_config.dart';
 import '../models/candidate.dart';
 import 'ward_download_screen.dart';
 import 'home_shell.dart';
@@ -536,6 +537,26 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                  // 🔴 লগইন পেজের নিচে কোম্পানির নাম ও হেল্পলাইন
+                  const SizedBox(height: 18),
+                  Text(
+                    AppConfig.loginCompanyText,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    AppConfig.loginHelplineText,
+                    style: const TextStyle(
+                      color: Colors.amberAccent,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],

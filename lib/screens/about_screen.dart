@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/app_config.dart';
 import '../utils/bangla_helper.dart';
 
 class AboutScreen extends StatelessWidget {
@@ -35,12 +36,11 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          const Text(
-            'স্মার্ট ভোটার ইনফো',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          Text(
+            AppConfig.appName,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
 
-          // ডায়নামিক ভার্সন
           FutureBuilder<PackageInfo>(
             future: PackageInfo.fromPlatform(),
             builder: (context, snapshot) {
@@ -55,7 +55,6 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // উদ্দেশ্য বিবরণী কার্ড
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -65,9 +64,9 @@ class AboutScreen extends StatelessWidget {
                 color: isDark ? Colors.white12 : Colors.grey.shade300,
               ),
             ),
-            child: Column(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
                   '🎯 অ্যাপের মূল উদ্দেশ্য:',
                   style: TextStyle(
@@ -86,7 +85,7 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // 🔴 কোম্পানি ও ডেভেলপার পরিচিতি কার্ড (সরদার আইটি আপডেট)
+          // 🔴 কোম্পানি ও ডেভেলপার পরিচিতি কার্ড (AppConfig থেকে ডায়নামিক)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -111,27 +110,30 @@ class AboutScreen extends StatelessWidget {
                 _infoRow(
                   Icons.business,
                   'কোম্পানির নাম:',
-                  'সরদার আইটি (Sardar IT)',
+                  AppConfig.companyName,
                 ),
-                _infoRow(Icons.location_on, 'ঠিকানা:', 'ঢাকা, বাংলাদেশ'),
+                _infoRow(
+                  Icons.location_on,
+                  'ঠিকানা:',
+                  AppConfig.companyAddress,
+                ),
                 _infoRow(
                   Icons.phone,
                   'মোবাইল / হেল্পলাইন:',
-                  '০১৬১৯০৯৭৫৭১',
+                  AppConfig.helplineNumber,
                   isAction: true,
-                  onTap: () => _makePhoneCall('016xxxxxxxx'),
+                  onTap: () => _makePhoneCall(AppConfig.rawHelplineNumber),
                 ),
-                _infoRow(Icons.language, 'ওয়েবসাইট:', 'আপাতত নেই'),
-                _infoRow(Icons.code, 'ডেভেলপার:', 'সরদার (Sardar)'),
+                _infoRow(Icons.language, 'ওয়েবসাইট:', AppConfig.companyWebsite),
+                _infoRow(Icons.code, 'ডেভেলপার:', AppConfig.developerName),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // 🔴 স্বত্ব ও কপিরাইট
-          const Text(
-            'স্বত্ব © ২০২৪-২০২৮ সরদার আইটি। সর্বস্বত্ব সংরক্ষিত।',
-            style: TextStyle(fontSize: 11, color: Colors.grey),
+          Text(
+            AppConfig.copyrightText,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
           ),
         ],
       ),

@@ -79,7 +79,6 @@ class DashboardScreen extends StatelessWidget {
           migratedVotersInt.toString(),
         );
 
-        // 🔴 প্রকাশের তারিখসমূহ
         final List pubDatesList = data['publicationDates'] ?? [];
         final String pubDatesStr = pubDatesList.isNotEmpty
             ? pubDatesList
@@ -127,7 +126,6 @@ class DashboardScreen extends StatelessWidget {
                   const Divider(),
                   _summaryRow('মাইগ্রেট ভোটার', totalMigrated),
                   const Divider(),
-                  // 🔴 ড্যাশবোর্ডে ভোটার তালিকা প্রকাশের তারিখ প্রদর্শন
                   _summaryRow('ভোটার তালিকা প্রকাশের তারিখ', pubDatesStr),
                   const SizedBox(height: 20),
 
@@ -153,7 +151,7 @@ class DashboardScreen extends StatelessWidget {
                     },
                     children: [
                       _buildTableRow(
-                        ['এলাকা', 'পুরুষ/মহিলা', 'ভোটার সংখ্যা', 'মোট'],
+                        ['এলাকা', 'পুরুষ/মহিলা/হিজড়া', 'ভোটার সংখ্যা', 'মোট'],
                         isHeader: true,
                         isDark: isDark,
                       ),
@@ -174,6 +172,30 @@ class DashboardScreen extends StatelessWidget {
                           ),
                           '',
                         ], isDark: isDark),
+                        // 🔴 হিজড়া ভোটার থাকলে বা থাকলে টেবিলে প্রদর্শন
+                        () {
+                          final int hijra =
+                              int.tryParse(
+                                row['hijraCount']?.toString() ?? '0',
+                              ) ??
+                              0;
+                          if (hijra > 0) {
+                            return _buildTableRow([
+                              row['area'].toString(),
+                              'হিজড়া',
+                              BanglaHelper.toBanglaDigits(hijra.toString()),
+                              '',
+                            ], isDark: isDark);
+                          }
+                          return const TableRow(
+                            children: [
+                              SizedBox.shrink(),
+                              SizedBox.shrink(),
+                              SizedBox.shrink(),
+                              SizedBox.shrink(),
+                            ],
+                          );
+                        }(),
                       ],
                     ],
                   ),

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/app_config.dart';
 import '../services/api_service.dart';
 import '../services/offline_image_service.dart';
 
@@ -190,6 +191,9 @@ class AuthService {
     final String localCandidateKey = 'saved_candidate_$userId';
     final String localPasswordKey = 'saved_password_$userId';
 
+    // 🔴 ঢাকা টাইমজোনে বর্তমান সময় গণনা
+    final nowDhaka = AppConfig.dhakaNow;
+
     if (prefs.containsKey(localCandidateKey)) {
       final savedPass = prefs.getString(localPasswordKey);
       if (savedPass != password) {
@@ -200,12 +204,13 @@ class AuthService {
       if (candidateJson != null) {
         final localCandidate = Candidate.fromMap(jsonDecode(candidateJson));
 
-        if (DateTime.now().isAfter(localCandidate.expiryDate)) {
+        // 🔴 ঢাকা সময় অনুযায়ী মেয়াদ/নির্বাচন শেষ কি না যাচাই
+        if (nowDhaka.isAfter(localCandidate.expiryDate)) {
           final connectivity = await Connectivity().checkConnectivity();
           if (connectivity.contains(ConnectivityResult.none)) {
             return {
               'success': false,
-              'message': 'আপনার লোকাল অ্যাকাউন্টের মেয়াদ শেষ হয়েছে। রিনিউ যাচাই করতে ইন্টারনেট সংযোগ দিয়ে লগইন করুন।',
+              'message': AppConfig.electionClosedNotice,
             };
           }
 
@@ -216,10 +221,10 @@ class AuthService {
           if (serverResult['success'] == true) {
             Candidate renewedCandidate = serverResult['candidate'];
 
-            if (DateTime.now().isAfter(renewedCandidate.expiryDate)) {
+            if (nowDhaka.isAfter(renewedCandidate.expiryDate)) {
               return {
                 'success': false,
-                'message': 'অ্যাডমিন প্যানেল থেকে এখনও মেয়াদ বাড়ানো হয়নি!',
+                'message': AppConfig.electionClosedNotice,
               };
             }
 
@@ -232,7 +237,7 @@ class AuthService {
           } else {
             return {
               'success': false,
-              'message': serverResult['message'] ?? 'রিনিউ যাচাই ব্যর্থ হয়েছে!',
+              'message': AppConfig.electionClosedNotice,
             };
           }
         }
@@ -255,11 +260,8 @@ class AuthService {
     if (result['success'] == true) {
       Candidate candidate = result['candidate'];
 
-      if (DateTime.now().isAfter(candidate.expiryDate)) {
-        return {
-          'success': false,
-          'message': 'আপনার অ্যাকাউন্টের মেয়াদ শেষ হয়ে গেছে!',
-        };
+      if (nowDhaka.isAfter(candidate.expiryDate)) {
+        return {'success': false, 'message': AppConfig.electionClosedNotice};
       }
 
       final localCandImg = await OfflineImageService.downloadAndCacheImage(

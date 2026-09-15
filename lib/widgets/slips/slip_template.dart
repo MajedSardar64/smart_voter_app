@@ -4,6 +4,7 @@ import '../../models/candidate.dart';
 import '../../models/voter.dart';
 import 'slip_format_1.dart';
 import 'slip_format_2.dart';
+import 'slip_format_3.dart';
 
 abstract class SlipTemplate {
   String get id;
@@ -19,12 +20,12 @@ abstract class SlipTemplate {
   });
 }
 
-// 🔴 ডায়নামিক রেজিস্ট্রি: নতুন কোনো ফরম্যাট তৈরি করলে শুধু এই লিস্টে একটি লাইন যোগ করলেই হবে
+// 🔴 ডায়নামিক রেজিস্ট্রি: ফরম্যাট ৩ স্বয়ংক্রিয়ভাবে যুক্ত হয়েছে
 class SlipRegistry {
   static final List<SlipTemplate> templates = [
     SlipFormat1(),
     SlipFormat2(),
-    // ভবিষ্যতে ফরম্যাট ৩ তৈরি করলে শুধু: SlipFormat3(), লিখলেই সেটিংসে নিজে থেকে আসবে
+    SlipFormat3(), // 🔴 নতুন যুক্ত ফরম্যাট ৩ (প্রিমিয়াম ডিজিটাল ব্যাজ)
   ];
 
   static SlipTemplate getTemplate(String id) {

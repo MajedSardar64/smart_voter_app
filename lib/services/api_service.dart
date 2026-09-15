@@ -177,11 +177,21 @@ class VoterApiService {
     if (!kIsWeb) "User-Agent": "SmartVoterSecureClient/5.0",
   };
 
-  // 🔴 গুরুত্বপূর্ণ পরিবর্তন: এরর হলে নীরবে খালি লিস্ট দেবে না, বরং এক্সেপশন থ্রো করবে যাতে ডাটা স্কিপ না হয়
+  // 🔴 ১টি এলাকা ডাউনলোড
   static Future<List<Voter>> fetchVotersForSingleArea(
     String areaName, {
     String? userId,
   }) async {
+    return fetchVotersForBatchAreas([areaName], userId: userId);
+  }
+
+  // 🔴 হাই-স্পিড ব্যাচ ডাউনলোড মেথড (একসাথে একাধিক এলাকা নিমিষে ডাউনলোড)
+  static Future<List<Voter>> fetchVotersForBatchAreas(
+    List<String> areaNames, {
+    String? userId,
+  }) async {
+    if (areaNames.isEmpty) return [];
+
     final url = "${AppConfig.apiBaseUrl}?action=download_voters";
 
     String currentUserId = userId ?? '';
@@ -191,13 +201,13 @@ class VoterApiService {
     }
 
     final encryptedBodyString = SecurityHelper.encryptWholeRequest({
-      "area_name": areaName,
+      "selected_areas": areaNames,
       "user_id": currentUserId,
     });
 
     final response = await http
         .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 60));
 
     if (response.statusCode == 200) {
       final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
@@ -268,6 +278,7 @@ class VoterApiService {
     return {'voters': <Voter>[], 'count': 0};
   }
 
+  // 🔴 অনলাইন ফ্যামিলি সার্চ (মিনিমাম ৫০% ম্যাচিং স্কোর ফিল্টারিং সহ)
   static Future<List<Voter>> searchFamilyOnline(
     Voter voter, {
     String? userId,
@@ -288,6 +299,8 @@ class VoterApiService {
         "mother_name": voter.mother,
         "voter_name": voter.name,
         "voter_no": voter.voterNo,
+        "voter_address": voter.address,
+        "voter_area": voter.area,
         "gender": BanglaHelper.formatGender(voter.gender),
         "limit": 50,
         "offset": 0,
@@ -305,7 +318,7 @@ class VoterApiService {
           final List rawList = res['data'] ?? [];
           return rawList
               .map((item) => Voter.fromMap(Map<String, dynamic>.from(item)))
-              .where((v) => v.voterNo != voter.voterNo)
+              .where((v) => v.voterNo != voter.voterNo && v.matchPercent >= 50)
               .toList();
         }
       }

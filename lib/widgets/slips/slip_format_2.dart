@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../config/app_config.dart';
 import '../../models/candidate.dart';
 import '../../models/voter.dart';
 import '../../utils/bangla_helper.dart';
@@ -153,8 +154,12 @@ class SlipFormat2 implements SlipTemplate {
         ? " [বুথ: ${BanglaHelper.toBanglaDigits(voter.boothsCount)}]"
         : "";
 
+    final effectiveFooter = footerText.isNotEmpty
+        ? footerText
+        : AppConfig.thermalFooterInfo;
+
     Widget slipContent = Container(
-      width: 500, // ফিক্সড থার্মাল প্রস্থ
+      width: 500,
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Container(
@@ -165,7 +170,6 @@ class SlipFormat2 implements SlipTemplate {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // হেডার
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -202,7 +206,6 @@ class SlipFormat2 implements SlipTemplate {
             ),
             const SizedBox(height: 3),
 
-            // মূল কন্টেন্ট
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -249,7 +252,6 @@ class SlipFormat2 implements SlipTemplate {
                 ),
                 const SizedBox(width: 6),
 
-                // প্রার্থীর ছবি ও মার্কা বক্স
                 Container(
                   width: 140,
                   padding: const EdgeInsets.all(3),
@@ -305,7 +307,6 @@ class SlipFormat2 implements SlipTemplate {
             ),
             const SizedBox(height: 3),
 
-            // ফুটার
             Container(
               width: double.infinity,
               padding: const EdgeInsets.only(top: 2),
@@ -313,7 +314,7 @@ class SlipFormat2 implements SlipTemplate {
                 border: Border(top: BorderSide(color: Colors.black, width: 1)),
               ),
               child: Text(
-                footerText,
+                effectiveFooter,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontFamily: 'Bangla',

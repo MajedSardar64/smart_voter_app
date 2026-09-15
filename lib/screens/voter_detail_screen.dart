@@ -13,6 +13,7 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/app_config.dart';
 import '../models/candidate.dart';
 import '../models/voter.dart';
 import '../services/api_service.dart';
@@ -35,8 +36,8 @@ class _VoterDetailScreenState extends State<VoterDetailScreen> {
   final GlobalKey _screenCardKey = GlobalKey();
   String _slipFormat = 'format_1';
 
-  final String softwareFooterInfo = 'সরদার আইটি, ঢাকা। মোবাইল: ০১৬১৯০৯৭৫৭১';
-  final String thermalFooterInfo = 'সরদার আইটি, ঢাকা, ০১৬১৯০৯৭৫৭১';
+  final String softwareFooterInfo = AppConfig.softwareFooterInfo;
+  final String thermalFooterInfo = AppConfig.thermalFooterInfo;
 
   @override
   void initState() {
@@ -175,7 +176,14 @@ $pubDateLine'''
     );
   }
 
-  // 🔴 ফ্যামিলি সার্চ (মাতার নাম লাইট/ডার্ক উভয় মোডের থিমের সাথে সামঞ্জস্যপূর্ণ)
+  Color _getMatchBadgeColor(int percent) {
+    if (percent >= 100) return const Color(0xFF15803D); // গাঢ় সবুজ
+    if (percent >= 85) return const Color(0xFF0D9488); // টিল
+    if (percent >= 75) return const Color(0xFF2563EB); // ব্লু
+    if (percent >= 60) return const Color(0xFFD97706); // অ্যাম্বার
+    return const Color(0xFF64748B); // স্লেট গ্রে
+  }
+
   void _openFamilySearch() async {
     List<Voter> family = [];
 
@@ -200,26 +208,50 @@ $pubDateLine'''
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => Container(
-        height: MediaQuery.of(context).size.height * 0.65,
+        height: MediaQuery.of(context).size.height * 0.72,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'একই পরিবারের অন্যান্য ভোটার',
-              style: TextStyle(
-                fontSize: 16.5,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'একই পরিবারের অন্যান্য ভোটার',
+                  style: TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00695C).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${BanglaHelper.toBanglaDigits(family.length.toString())} জন সদস্য',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00695C),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const Divider(),
             family.isEmpty
                 ? Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(24),
                       child: Text(
-                        'কোন সদস্য পাওয়া যায়নি',
+                        '৫০% এর বেশি তথ্য মিলে এমন কোনো সদস্য পাওয়া যায়নি।',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
                           color: isDark ? Colors.white60 : Colors.black54,
@@ -228,27 +260,58 @@ $pubDateLine'''
                     ),
                   )
                 : Expanded(
-                    child: ListView.builder(
+                    child: ListView.separated(
                       itemCount: family.length,
+                      separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        color: isDark ? Colors.white12 : Colors.grey.shade200,
+                      ),
                       itemBuilder: (ctx, i) {
                         final member = family[i];
                         return ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 4,
-                            vertical: 2,
+                            vertical: 4,
                           ),
-                          title: Text(
-                            member.name,
-                            style: const TextStyle(
-                              color: Color(0xFF2563EB),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  member.name,
+                                  style: const TextStyle(
+                                    color: Color(0xFF2563EB),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                              if (member.relationTag.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getMatchBadgeColor(
+                                      member.matchPercent,
+                                    ),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    member.relationTag,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                          // 🔴 ডার্ক মোডের ব্যাকগ্রাউন্ড অনুযায়ী পিতা ও মাতার রঙের নিখুঁত সামঞ্জস্য
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              const SizedBox(height: 2),
                               Text(
                                 'পিতা/স্বামী: ${member.fatherOrHusband}',
                                 style: TextStyle(
@@ -265,21 +328,18 @@ $pubDateLine'''
                                     fontSize: 12.5,
                                     color: isDark
                                         ? const Color(0xFFCBD5E1)
-                                        : const Color(
-                                            0xFF334155,
-                                          ), // 🔴 ফিক্সড কালার
+                                        : const Color(0xFF334155),
                                   ),
                                 ),
-                              if (_candidate?.showPollingCenter != false &&
-                                  member.centerName.isNotEmpty)
-                                Text(
-                                  'কেন্দ্র: ${member.centerName}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF0D9488),
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                              Text(
+                                'ঠিকানা: ${member.address} • এলাকা: ${member.area}',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: isDark
+                                      ? Colors.white54
+                                      : Colors.grey.shade600,
                                 ),
+                              ),
                             ],
                           ),
                           trailing: Icon(
@@ -522,7 +582,6 @@ $pubDateLine'''
                 ),
                 const SizedBox(height: 2),
 
-                // অন-স্ক্রিন প্রিভিউ
                 RepaintBoundary(
                   key: _screenCardKey,
                   child: Container(
@@ -654,7 +713,7 @@ $pubDateLine'''
                             ),
                           ),
                           child: Text(
-                            '${_candidate?.name ?? "মুহাম্মদ সাইদুল ইসলাম"} কে ${_candidate?.symbolName ?? "তালা"} মার্কায় ভোট দিন',
+                            '${_candidate?.name ?? ""} কে ${_candidate?.symbolName ?? ""} মার্কায় ভোট দিন',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontFamily: 'Bangla',
@@ -771,7 +830,6 @@ $pubDateLine'''
             ),
           ),
 
-          // অফ-স্ক্রিন প্রিন্ট স্লিপ (ডায়নামিকালি সিলেক্টেড ফরম্যাটে প্রিন্ট হবে)
           Transform.translate(
             offset: const Offset(-10000, -10000),
             child: RepaintBoundary(
