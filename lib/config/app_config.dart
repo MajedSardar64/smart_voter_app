@@ -40,7 +40,7 @@ class AppConfig {
   static const Map<String, CompanyProfile> companyProfiles = {
     // প্রোফাইল ১: সরদার আইটি
     'sardar_it': CompanyProfile(
-      companyName: 'সরদার আইটি (Sardar IT)',
+      companyName: 'সরদার আইটি',
       companyCity: 'ঢাকা',
       helplineNumber: '০১৬xxxxxxxx',
       companyWebsite: 'আপাতত নেই',
@@ -50,7 +50,7 @@ class AppConfig {
 
     // প্রোফাইল ২: উদাহরণ কোম্পানি (প্রয়োজনে তথ্য পরিবর্তন করুন)
     'smart_tech': CompanyProfile(
-      companyName: 'স্মার্ট টেক সল্যুশন (Smart Tech)',
+      companyName: 'স্মার্ট টেক সল্যুশন',
       companyCity: 'চট্টগ্রাম',
       helplineNumber: '০১৭১১০০০০০০',
       companyWebsite: 'www.smarttech.com',
