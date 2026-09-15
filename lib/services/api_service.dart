@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import '../models/candidate.dart';
 import '../models/voter.dart';
-import '../utils/bangla_helper.dart';
 import '../utils/security_helper.dart';
 
 List<Voter> _parseVotersBackground(List<dynamic> list) {
@@ -17,12 +18,77 @@ List<Voter> _parseVotersBackground(List<dynamic> list) {
 }
 
 class CandidateApiService {
+  static const MethodChannel _nativeChannel = MethodChannel(
+    'com.example.smart_voter_app/bengali_ocr',
+  );
+
   static Map<String, String> get _headers => {
     "Content-Type": "application/json",
     "Accept": "application/json",
     "ngrok-skip-browser-warning": "true",
     if (!kIsWeb) "User-Agent": "SmartVoterSecureClient/5.0",
   };
+
+  // 🔴 ডিভাইসের স্থায়ী আসল হার্ডওয়্যার আইডি (ডাটা ক্লিয়ার করলেও বদলাবে না)
+  static Future<String> _getPermanentHardwareId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? hardwareId = prefs.getString('permanent_device_hardware_id');
+
+    if (hardwareId != null &&
+        hardwareId.isNotEmpty &&
+        !hardwareId.startsWith('HW_ANDROID_')) {
+      return hardwareId;
+    }
+
+    if (kIsWeb) {
+      hardwareId = 'WEB_CLIENT';
+    } else {
+      try {
+        final String? nativeId = await _nativeChannel.invokeMethod<String>(
+          'getAndroidHardwareId',
+        );
+        if (nativeId != null &&
+            nativeId.trim().isNotEmpty &&
+            nativeId != 'UNKNOWN_ANDROID') {
+          hardwareId = nativeId.trim();
+        }
+      } catch (_) {}
+
+      // নেটিভ চ্যানেল না পেলে নিরাপদ সিগনেচার
+      if (hardwareId == null || hardwareId.isEmpty) {
+        hardwareId =
+            'DEV_${Platform.operatingSystem.toUpperCase()}_${Platform.localHostname.hashCode.abs()}';
+      }
+    }
+
+    await prefs.setString('permanent_device_hardware_id', hardwareId);
+    return hardwareId;
+  }
+
+  // 🔴 ডিভাইসের আসল পাবলিক ইন্টারনেট আইপি (রাউটার লোকাল আইপি বাইপাস)
+  static Future<String> _getClientPublicIp() async {
+    try {
+      final response = await http
+          .get(Uri.parse('https://api.ipify.org'))
+          .timeout(const Duration(seconds: 2));
+      if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
+        return response.body.trim();
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  // 🔴 ফোনের মডেল নাম
+  static String _getDeviceModelName() {
+    if (kIsWeb) return 'ওয়েব ব্রাউজার (Web)';
+    try {
+      if (Platform.isAndroid) {
+        return 'Android Phone (${Platform.operatingSystemVersion.split(' ')[0]})';
+      }
+      if (Platform.isIOS) return 'Apple iPhone (iOS)';
+    } catch (_) {}
+    return 'স্মার্টফোন';
+  }
 
   static Future<Map<String, dynamic>> login(
     String userId,
@@ -31,9 +97,16 @@ class CandidateApiService {
     final url = "${AppConfig.apiBaseUrl}?action=candidate_login";
 
     try {
+      final hardwareId = await _getPermanentHardwareId();
+      final deviceModel = _getDeviceModelName();
+      final publicIp = await _getClientPublicIp();
+
       final encryptedBodyString = SecurityHelper.encryptWholeRequest({
         "user_id": userId,
         "password": password,
+        "device_id": hardwareId,
+        "device_model": deviceModel,
+        "client_ip": publicIp,
       });
 
       final response = await http
@@ -112,8 +185,15 @@ class CandidateApiService {
     final url = "${AppConfig.apiBaseUrl}?action=refresh_candidate_profile";
 
     try {
+      final hardwareId = await _getPermanentHardwareId();
+      final deviceModel = _getDeviceModelName();
+      final publicIp = await _getClientPublicIp();
+
       final encryptedBodyString = SecurityHelper.encryptWholeRequest({
         "user_id": userId,
+        "device_id": hardwareId,
+        "device_model": deviceModel,
+        "client_ip": publicIp,
       });
 
       final response = await http
@@ -177,20 +257,24 @@ class VoterApiService {
     if (!kIsWeb) "User-Agent": "SmartVoterSecureClient/5.0",
   };
 
-  // 🔴 ১টি এলাকা ডাউনলোড
   static Future<List<Voter>> fetchVotersForSingleArea(
     String areaName, {
     String? userId,
+    String? areaCode,
   }) async {
-    return fetchVotersForBatchAreas([areaName], userId: userId);
+    return fetchVotersForBatch(
+      [areaName],
+      areaCodes: (areaCode != null && areaCode.isNotEmpty) ? [areaCode] : [],
+      userId: userId,
+    );
   }
 
-  // 🔴 হাই-স্পিড ব্যাচ ডাউনলোড মেথড (একসাথে একাধিক এলাকা নিমিষে ডাউনলোড)
-  static Future<List<Voter>> fetchVotersForBatchAreas(
+  static Future<List<Voter>> fetchVotersForBatch(
     List<String> areaNames, {
+    List<String> areaCodes = const [],
     String? userId,
   }) async {
-    if (areaNames.isEmpty) return [];
+    if (areaNames.isEmpty && areaCodes.isEmpty) return [];
 
     final url = "${AppConfig.apiBaseUrl}?action=download_voters";
 
@@ -201,13 +285,15 @@ class VoterApiService {
     }
 
     final encryptedBodyString = SecurityHelper.encryptWholeRequest({
+      "area_name": areaNames.isNotEmpty ? areaNames.first : '',
       "selected_areas": areaNames,
+      "selected_codes": areaCodes,
       "user_id": currentUserId,
     });
 
     final response = await http
         .post(Uri.parse(url), headers: _headers, body: encryptedBodyString)
-        .timeout(const Duration(seconds: 60));
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode == 200) {
       final dynamic res = SecurityHelper.decryptWholeResponse(response.body);
@@ -278,7 +364,6 @@ class VoterApiService {
     return {'voters': <Voter>[], 'count': 0};
   }
 
-  // 🔴 অনলাইন ফ্যামিলি সার্চ (মিনিমাম ৫০% ম্যাচিং স্কোর ফিল্টারিং সহ)
   static Future<List<Voter>> searchFamilyOnline(
     Voter voter, {
     String? userId,
@@ -301,7 +386,7 @@ class VoterApiService {
         "voter_no": voter.voterNo,
         "voter_address": voter.address,
         "voter_area": voter.area,
-        "gender": BanglaHelper.formatGender(voter.gender),
+        "gender": voter.gender,
         "limit": 50,
         "offset": 0,
       };

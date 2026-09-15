@@ -15,6 +15,7 @@ class WardAllocation {
   final String unionOrPouro;
   final String wardNo;
   final String areaName;
+  final String areaCode; // 🔴 এলাকা কোড ফিল্ড
   final int totalVoters;
 
   WardAllocation({
@@ -24,6 +25,7 @@ class WardAllocation {
     required this.unionOrPouro,
     required this.wardNo,
     required this.areaName,
+    this.areaCode = '',
     required this.totalVoters,
   });
 
@@ -34,6 +36,7 @@ class WardAllocation {
     'unionOrPouro': unionOrPouro,
     'wardNo': wardNo,
     'areaName': areaName,
+    'areaCode': areaCode,
     'totalVoters': totalVoters,
   };
 
@@ -46,6 +49,7 @@ class WardAllocation {
         unionOrPouro: '',
         wardNo: '',
         areaName: '',
+        areaCode: '',
         totalVoters: 0,
       );
     }
@@ -56,6 +60,8 @@ class WardAllocation {
       unionOrPouro: map['unionOrPouro']?.toString() ?? '',
       wardNo: map['wardNo']?.toString() ?? '',
       areaName: map['areaName']?.toString() ?? '',
+      areaCode:
+          map['areaCode']?.toString() ?? map['area_code']?.toString() ?? '',
       totalVoters: int.tryParse(map['totalVoters']?.toString() ?? '0') ?? 0,
     );
   }
@@ -191,7 +197,6 @@ class AuthService {
     final String localCandidateKey = 'saved_candidate_$userId';
     final String localPasswordKey = 'saved_password_$userId';
 
-    // 🔴 ঢাকা টাইমজোনে বর্তমান সময় গণনা
     final nowDhaka = AppConfig.dhakaNow;
 
     if (prefs.containsKey(localCandidateKey)) {
@@ -204,7 +209,6 @@ class AuthService {
       if (candidateJson != null) {
         final localCandidate = Candidate.fromMap(jsonDecode(candidateJson));
 
-        // 🔴 ঢাকা সময় অনুযায়ী মেয়াদ/নির্বাচন শেষ কি না যাচাই
         if (nowDhaka.isAfter(localCandidate.expiryDate)) {
           final connectivity = await Connectivity().checkConnectivity();
           if (connectivity.contains(ConnectivityResult.none)) {
@@ -264,18 +268,28 @@ class AuthService {
         return {'success': false, 'message': AppConfig.electionClosedNotice};
       }
 
-      final localCandImg = await OfflineImageService.downloadAndCacheImage(
+      List<String?> localImages = [
         candidate.candidateImage,
-        'cand_img',
-      );
-      final localSymImg = await OfflineImageService.downloadAndCacheImage(
         candidate.symbolImage,
-        'sym_img',
-      );
-      final localBanImg = await OfflineImageService.downloadAndCacheImage(
         candidate.bannerImage,
-        'ban_img',
-      );
+      ];
+
+      try {
+        localImages = await Future.wait([
+          OfflineImageService.downloadAndCacheImage(
+            candidate.candidateImage,
+            'cand_img',
+          ),
+          OfflineImageService.downloadAndCacheImage(
+            candidate.symbolImage,
+            'sym_img',
+          ),
+          OfflineImageService.downloadAndCacheImage(
+            candidate.bannerImage,
+            'ban_img',
+          ),
+        ]).timeout(const Duration(seconds: 4));
+      } catch (_) {}
 
       final offlineCandidate = Candidate(
         userId: candidate.userId,
@@ -293,9 +307,9 @@ class AuthService {
         upazilaName: candidate.upazilaName,
         totalVoters: candidate.totalVoters,
         showPollingCenter: candidate.showPollingCenter,
-        candidateImage: localCandImg,
-        symbolImage: localSymImg,
-        bannerImage: localBanImg,
+        candidateImage: localImages[0],
+        symbolImage: localImages[1],
+        bannerImage: localImages[2],
         expiryDate: candidate.expiryDate,
         assignedWards: candidate.assignedWards,
       );
@@ -327,18 +341,28 @@ class AuthService {
       if (result['success'] == true) {
         Candidate candidate = result['candidate'];
 
-        final localCandImg = await OfflineImageService.downloadAndCacheImage(
+        List<String?> localImages = [
           candidate.candidateImage,
-          'cand_img',
-        );
-        final localSymImg = await OfflineImageService.downloadAndCacheImage(
           candidate.symbolImage,
-          'sym_img',
-        );
-        final localBanImg = await OfflineImageService.downloadAndCacheImage(
           candidate.bannerImage,
-          'ban_img',
-        );
+        ];
+
+        try {
+          localImages = await Future.wait([
+            OfflineImageService.downloadAndCacheImage(
+              candidate.candidateImage,
+              'cand_img',
+            ),
+            OfflineImageService.downloadAndCacheImage(
+              candidate.symbolImage,
+              'sym_img',
+            ),
+            OfflineImageService.downloadAndCacheImage(
+              candidate.bannerImage,
+              'ban_img',
+            ),
+          ]).timeout(const Duration(seconds: 4));
+        } catch (_) {}
 
         final updatedOfflineCandidate = Candidate(
           userId: candidate.userId,
@@ -356,9 +380,9 @@ class AuthService {
           upazilaName: candidate.upazilaName,
           totalVoters: candidate.totalVoters,
           showPollingCenter: candidate.showPollingCenter,
-          candidateImage: localCandImg,
-          symbolImage: localSymImg,
-          bannerImage: localBanImg,
+          candidateImage: localImages[0],
+          symbolImage: localImages[1],
+          bannerImage: localImages[2],
           expiryDate: candidate.expiryDate,
           assignedWards: candidate.assignedWards,
         );
