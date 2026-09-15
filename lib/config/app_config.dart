@@ -1,5 +1,24 @@
 import 'package:flutter/foundation.dart';
 
+// 🔴 প্রতিটি কোম্পানির প্রোফাইল মডেল
+class CompanyProfile {
+  final String companyName;
+  final String companyCity;
+  final String helplineNumber;
+  final String companyWebsite;
+  final String developerName;
+  final String copyrightYears;
+
+  const CompanyProfile({
+    required this.companyName,
+    required this.companyCity,
+    required this.helplineNumber,
+    this.companyWebsite = 'আপাতত নেই',
+    this.developerName = 'সরদার',
+    this.copyrightYears = '২০২৪-২০২৮',
+  });
+}
+
 class AppConfig {
   static const bool isLiveApiMode = true;
 
@@ -9,35 +28,74 @@ class AppConfig {
   static const String _apiEndpoint = "/VoterListApi/api-v1/app/api.php";
 
   // =========================================================================
-  // 🏢 কোম্পানির প্রাথমিক তথ্য (শুধুমাত্র এইখানে একবার পরিবর্তন করবেন)
+  // 🎯 ১. বর্তমানে কোন প্রোফাইলটি ডিফল্ট/সক্রিয় থাকবে?
+  // শুধুমাত্র নিচের নামটি পরিবর্তন করবেন (যেমন: 'sardar_it' অথবা 'smart_it' ইত্যাদি)
   // =========================================================================
-  static const String companyName = 'সরদার আইটি';
-  static const String companyCity = 'ঢাকা';
-  static const String helplineNumber = '০১৬xxxxxxxx';
-  static const String companyWebsite = 'আপাতত নেই';
-  static const String developerName = 'সরদার';
-  static const String copyrightYears = '২০২৪-২০২৬';
+  static const String activeProfile = 'sardar_it';
+
+  // =========================================================================
+  // 🏢 ২. একাধিক কোম্পানির প্রোফাইল তালিকা
+  // এখানে আপনি ইচ্ছামতো যত খুশি কোম্পানির প্রোফাইল যোগ করে রাখতে পারবেন
+  // =========================================================================
+  static const Map<String, CompanyProfile> companyProfiles = {
+    // প্রোফাইল ১: সরদার আইটি
+    'sardar_it': CompanyProfile(
+      companyName: 'সরদার আইটি (Sardar IT)',
+      companyCity: 'ঢাকা',
+      helplineNumber: '০১৬xxxxxxxx',
+      companyWebsite: 'আপাতত নেই',
+      developerName: 'সরদার',
+      copyrightYears: '২০২৪-২০২৭',
+    ),
+
+    // প্রোফাইল ২: উদাহরণ কোম্পানি (প্রয়োজনে তথ্য পরিবর্তন করুন)
+    'smart_tech': CompanyProfile(
+      companyName: 'স্মার্ট টেক সল্যুশন (Smart Tech)',
+      companyCity: 'চট্টগ্রাম',
+      helplineNumber: '০১৭১১০০০০০০',
+      companyWebsite: 'www.smarttech.com',
+      developerName: 'ইঞ্জি. কাওসার',
+      copyrightYears: '২০২৬',
+    ),
+
+    // প্রোফাইল ৩: অন্য যেকোনো কোম্পানি
+    'election_care': CompanyProfile(
+      companyName: 'ইলেকশন কেয়ার বাংলাদেশ',
+      companyCity: 'সিলেট',
+      helplineNumber: '০১৮২২০০০০০০',
+      companyWebsite: 'www.electioncare.com.bd',
+      developerName: 'আইটি টিম',
+      copyrightYears: '২০২৬-২০২৬',
+    ),
+  };
+
+  // =========================================================================
+  // ⚡ ৩. সক্রিয় প্রোফাইল রিডার (নিজে থেকেই সিলেক্টেড কোম্পানির ডাটা লোড করবে)
+  // =========================================================================
+  static CompanyProfile get current =>
+      companyProfiles[activeProfile] ?? companyProfiles.values.first;
+
+  // পুরো অ্যাপে স্বয়ংক্রিয়ভাবে বর্তমান কোম্পানির তথ্য সরবরাহের গেটারসমূহ
   static const String appName = 'স্মার্ট ভোটার ইনফো';
+  static String get companyName => current.companyName;
+  static String get companyCity => current.companyCity;
+  static String get helplineNumber => current.helplineNumber;
+  static String get companyWebsite => current.companyWebsite;
+  static String get developerName => current.developerName;
+  static String get copyrightYears => current.copyrightYears;
 
-  // =========================================================================
-  // ⚡ কম্পাইল-টাইম কনস্ট্যান্ট (কনস্ট্রাক্টরে সরাসরি ব্যবহারযোগ্য Const String)
-  // =========================================================================
-  static const String companyAddress = '$companyCity, বাংলাদেশ';
-  static const String loginCompanyText = companyName;
-  static const String loginHelplineText = 'হেল্পলাইন: $helplineNumber';
-  static const String softwareFooterInfo =
-      '$companyName, $companyCity। মোবাইল: $helplineNumber';
-  static const String thermalFooterInfo =
-      '$companyName, $companyCity, $helplineNumber';
-  static const String copyrightText =
-      'স্বত্ব © $copyrightYears $companyName। সর্বস্বত্ব সংরক্ষিত।';
+  static String get companyAddress => '${current.companyCity}, বাংলাদেশ';
+  static String get loginCompanyText => current.companyName;
+  static String get loginHelplineText => 'হেল্পলাইন: ${current.helplineNumber}';
+  static String get softwareFooterInfo =>
+      '${current.companyName}, ${current.companyCity}। মোবাইল: ${current.helplineNumber}';
+  static String get thermalFooterInfo =>
+      '${current.companyName}, ${current.companyCity}, ${current.helplineNumber}';
+  static String get copyrightText =>
+      'স্বত্ব © ${current.copyrightYears} ${current.companyName}। সর্বস্বত্ব সংরক্ষিত।';
 
-  // 🔴 নির্বাচন শেষ সংক্রান্ত বার্তা
-  static const String electionClosedNotice =
-      'নির্বাচন সম্পন্ন হওয়ায় সাময়িকভাবে এই সার্ভিসটি বন্ধ রয়েছে। বিস্তারিত তথ্যের জন্য অ্যাডমিনের সাথে যোগাযোগ করুন।';
-
-  // 🔴 ফোন ডায়াল করার জন্য ইংরেজি ডিজিটের হেল্পলাইন
-  static String get rawHelplineNumber => helplineNumber
+  // ফোন কল করার উপযোগী ইংরেজি ডিজিটের মোবাইল নম্বর
+  static String get rawHelplineNumber => current.helplineNumber
       .replaceAll('০', '0')
       .replaceAll('১', '1')
       .replaceAll('২', '2')
@@ -49,6 +107,10 @@ class AppConfig {
       .replaceAll('৮', '8')
       .replaceAll('৯', '9')
       .replaceAll('x', '-');
+
+  // 🔴 নির্বাচন শেষ সংক্রান্ত বার্তা
+  static const String electionClosedNotice =
+      'নির্বাচন সম্পন্ন হওয়ায় সাময়িকভাবে এই সার্ভিসটি বন্ধ রয়েছে। বিস্তারিত তথ্যের জন্য অ্যাডমিনের সাথে যোগাযোগ করুন।';
 
   // 🔴 ঢাকা টাইমজোন (UTC +6 ঘণ্টা)
   static DateTime get dhakaNow {

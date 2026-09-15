@@ -16,21 +16,24 @@ class VoterPrintSlip extends StatelessWidget {
     super.key,
     required this.candidate,
     required this.voter,
-    this.footerText = AppConfig.thermalFooterInfo,
+    this.footerText = '',
     this.isRotated90 = true,
     this.slipFormat = 'format_1',
   });
 
   @override
   Widget build(BuildContext context) {
+    // 🔴 সক্রিয় কোম্পানির ফুটার টেক্সট সরাসরি লোড হবে
+    final effectiveFooter = footerText.trim().isNotEmpty
+        ? footerText
+        : AppConfig.thermalFooterInfo;
+
     final template = SlipRegistry.getTemplate(slipFormat);
     return template.buildSlip(
       context: context,
       candidate: candidate,
       voter: voter,
-      footerText: footerText.isNotEmpty
-          ? footerText
-          : AppConfig.thermalFooterInfo,
+      footerText: effectiveFooter,
       isRotated90: isRotated90,
     );
   }
